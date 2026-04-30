@@ -8,7 +8,7 @@ export interface Room {
   name: string;
   area: number; // m2
   perimeter: number; // m
-  type: 'kitchen' | 'living' | 'bedroom' | 'bathroom' | 'laundry' | 'other';
+  type: 'kitchen' | 'living' | 'bedroom' | 'bathroom' | 'laundry' | 'hallway' | 'other';
   lights: number; // VA
   lightsLength?: number; // m
   lightsGauge?: number; // mm2

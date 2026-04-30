@@ -29,6 +29,7 @@ export const ROOM_TYPES = [
   { value: 'kitchen', label: 'Cozinha', icon: 'Utensils' },
   { value: 'bathroom', label: 'Banheiro', icon: 'Bath' },
   { value: 'laundry', label: 'Lavanderia', icon: 'WashingMachine' },
+  { value: 'hallway', label: 'Corredor/Hall', icon: 'ChevronRight' },
   { value: 'other', label: 'Outro', icon: 'Layout' },
 ];
 

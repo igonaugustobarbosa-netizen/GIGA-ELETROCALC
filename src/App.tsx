@@ -52,6 +52,7 @@ const RoomIcon = ({ type, className }: { type: string; className?: string }) => 
     case 'kitchen': return <Utensils className={className} />;
     case 'bathroom': return <Bath className={className} />;
     case 'laundry': return <WashingMachine className={className} />;
+    case 'hallway': return <ChevronRight className={className} />;
     default: return <Layout className={className} />;
   }
 };
@@ -794,6 +795,9 @@ export default function App() {
     if (perimeter > 0) {
       if (['kitchen', 'laundry', 'bathroom'].includes(type)) {
         tugs = Math.ceil(perimeter / 3.5);
+      } else if (type === 'hallway') {
+        tugs = Math.ceil(perimeter / 5);
+        if (tugs === 0) tugs = 1;
       } else {
         tugs = Math.ceil(perimeter / 5);
       }

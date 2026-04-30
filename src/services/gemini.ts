@@ -64,17 +64,18 @@ export async function generateDiagrams(rooms: any[], base64Image?: string) {
 
         1. Diagrama Unifilar Técnico: 
            - Deve seguir rigorosamente as normas NBR 5410 e NBR 5444.
-           - Mostre claramente: Entrada de serviço, Dispositivo de Proteção contra Surtos (DPS), Interruptor Diferencial Residual (DR), Disjuntor Geral e os barramentos de fase, neutro e terra.
-           - Organize os circuitos por cômodo, indicando a fiação (fase, neutro, terra), seção dos condutores (ex: 2.5mm²) e a corrente nominal dos disjuntores.
+           - Mostre claramente: Entrada de serviço, Dispositivo de Proteção contra Surtos (DPS), Interruptor Diferencial Residual (DR), Disjuntor Geral e os barramentos de fase, neutro e terra (PE).
+           - Organize os circuitos por cômodo, indicando a fiação (símbolos de fase, neutro, terra), seção dos condutores (ex: 2.5mm²) e a corrente nominal dos disjuntores.
+           - CORREÇÃO DE ERROS: Garanta que o DPS e o DR estejam presentes. Verifique se as bitolas estão coerentes com a carga (ex: 6mm² para chuveiro 220V).
            - O desenho deve ser limpo, com textos legíveis e conexões bem definidas.
 
-        2. Esquema Elétrico em Planta (Escala Ampliada):
-           - Gere um SVG com um viewbox amplo (ex: 0 0 1000 800) para garantir que os detalhes não fiquem pequenos ou amontoados.
+        2. Esquema Elétrico em Planta (Escala Ampliada e Legenda):
+           - Gere um SVG com um viewbox amplo (mínimo 1200x800) para garantir que os detalhes não fiquem pequenos.
            - Desenhe a disposição de iluminação, tomadas (TUG/TUE) e interruptores DIRETAMENTE sobre o layout real da planta.
-           - REGRA CRÍTICA: Nunca esqueça de posicionar pontos de iluminação em corredores (hallways) e halls de entrada, mesmo que sejam áreas pequenas.
-           - LEGENDA: Inclua uma legenda técnica organizada informando os símbolos de cada componente.
-           - DETALHAMENTO: Inclua exatamente a quantidade de TUGs e TUEs informadas no JSON. Distribua os pontos de forma lógica (ex: tomadas próximas a cantos ou centros de parede).
-           - FIDELIDADE: Mantenha a fidelidade absoluta à arquitetura original da imagem fornecida.
+           - REGRA CRÍTICA: Nunca esqueça de posicionar pontos de iluminação em corredores (hallways) e halls de entrada.
+           - LEGENDA OBRIGATÓRIA: Inclua uma legenda técnica organizada informando os símbolos de cada componente no canto do desenho.
+           - DETALHAMENTO: Inclua exatamente a quantidade de TUGs e TUEs dimensionadas. Distribua os pontos de forma lógica.
+           - FIDELIDADE E ESCALA: Mantenha a fidelidade absoluta à arquitetura da imagem fornecida. Faça o desenho GRANDE para facilitar a visualização.
 
         Retorne um JSON com os campos 'unifilar' e 'electrical' contendo as strings SVG completas e prontas para exibição.`,
       }
