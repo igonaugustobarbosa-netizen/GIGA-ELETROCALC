@@ -16,7 +16,6 @@ export function generateElectricalPDF(
   catalog: Record<string, number>, 
   totalBudget: number,
   poleModelName?: string,
-  floorPlanImage?: string,
   technician?: { name: string; license: string; phone: string }
 ) {
   const doc = new jsPDF();
@@ -135,31 +134,6 @@ export function generateElectricalPDF(
     doc.text(footerText, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
   }
 
-  // Add Floor Plan page if exists
-  if (floorPlanImage) {
-    doc.addPage();
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
-    doc.text('Anexo: Planta Baixa', 14, 20);
-    
-    try {
-      // Calculate dimensions to fit in page
-      const imgWidth = 180;
-      const imgHeight = 160;
-      doc.addImage(floorPlanImage, 'JPEG', 15, 30, imgWidth, imgHeight, undefined, 'FAST');
-
-      // Add footer to this new page too
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      const footerText = 'Desenvolvedor: Giga Elétrica | Fone: 43 996118806 | Joaquim Távora - PR';
-      const pageWidth = doc.internal.pageSize.getWidth();
-      doc.text(footerText, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-    } catch (e) {
-      console.error('Error adding image to PDF:', e);
-      doc.text('Erro ao carregar imagem da planta.', 14, 40);
-    }
-  }
-
   doc.save(`Orcamento_${projectName.replace(/\s+/g, '_')}_${date.replace(/\//g, '-')}.pdf`);
 }
 
@@ -198,10 +172,7 @@ export async function generateDetailedElectricalPDF(
   detailedList: any, // DetailedMaterialList from electricalLogic
   customMaterials: ProjectMaterial[],
   catalog: Record<string, number>,
-  technician?: { name: string; license: string; phone: string },
-  floorPlanImage?: string,
-  unifilarDiagram?: string,
-  electricalDiagram?: string
+  technician?: { name: string; license: string; phone: string }
 ) {
   const doc = new jsPDF();
   const date = new Date().toLocaleDateString('pt-BR');
@@ -324,46 +295,6 @@ export async function generateDetailedElectricalPDF(
   doc.setFont('helvetica', 'bold');
   doc.text('VALOR TOTAL ESTIMADO DO ORÇAMENTO:', 20, currentY + 10);
   doc.text(`R$ ${totalProjectSum.toFixed(2)}`, 190, currentY + 10, { align: 'right' });
-
-  // Add Floor Plan
-  if (floorPlanImage) {
-    doc.addPage();
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
-    doc.text('Anexo 1: Planta Baixa Original', 14, 20);
-    try {
-      doc.addImage(floorPlanImage, 'JPEG', 15, 30, 180, 160, undefined, 'FAST');
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  // Add Diagrams as Images
-  if (unifilarDiagram) {
-    try {
-      const unifilarImg = await svgToDataURL(unifilarDiagram);
-      doc.addPage();
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(14);
-      doc.text('Anexo 2: Diagrama Unifilar', 14, 20);
-      doc.addImage(unifilarImg, 'JPEG', 15, 30, 180, 160, undefined, 'FAST');
-    } catch (e) {
-      console.error('Erro ao renderizar diagrama unifilar no PDF:', e);
-    }
-  }
-
-  if (electricalDiagram) {
-    try {
-      const electricalImg = await svgToDataURL(electricalDiagram);
-      doc.addPage();
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(14);
-      doc.text('Anexo 3: Esquema Elétrico Sugerido', 14, 20);
-      doc.addImage(electricalImg, 'JPEG', 15, 30, 180, 160, undefined, 'FAST');
-    } catch (e) {
-      console.error('Erro ao renderizar esquema elétrico no PDF:', e);
-    }
-  }
 
   // Footers
   const pageCount = (doc as any).internal.getNumberOfPages();

@@ -64,9 +64,6 @@ export interface Project {
   serviceEntranceLength?: number; // m
   serviceEntranceGauge?: number; // mm2
   calculateOnlyPole: boolean;
-  floorPlanImage?: string;
-  unifilarDiagramImage?: string;
-  electricalDiagramImage?: string;
   technician?: TechnicianInfo;
   createdAt: number;
 }

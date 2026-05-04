@@ -11,7 +11,6 @@ import {
   Info, 
   Edit2,
   ChevronRight, 
-  MessageSquare, 
   X, 
   Save, 
   FileText,
@@ -29,9 +28,6 @@ import {
   FileSpreadsheet,
   Settings,
   FileDown,
-  Upload,
-  Sparkles,
-  Loader2,
   User,
   Download
 } from 'lucide-react';
@@ -42,7 +38,6 @@ import { Room, MaterialItem, TUE, Project, ProjectMaterial, EntryPoleModel, Tech
 import { calculateRoomRequirements, generateMaterialList, generateDetailedMaterialList } from './services/electricalLogic';
 import { generateElectricalPDF, generateDetailedElectricalPDF } from './services/pdfService';
 import { ROOM_TYPES, DEFAULT_CATALOG } from './constants';
-import { getElectricalAdvice, analyzeFloorPlan, generateDiagrams } from './services/gemini';
 import { calculateVoltageDrop } from './services/voltageDrop';
 
 const RoomIcon = ({ type, className }: { type: string; className?: string }) => {
@@ -70,9 +65,6 @@ export default function App() {
         serviceEntranceLength: 10,
         serviceEntranceGauge: 16,
         calculateOnlyPole: false,
-        floorPlanImage: undefined,
-        unifilarDiagramImage: undefined,
-        electricalDiagramImage: undefined,
         createdAt: Date.now()
       };
       return [firstProject];
@@ -117,16 +109,6 @@ export default function App() {
     setEditingTechId(null);
     setCurrentTech({ id: '', name: '', license: '', phone: '' });
   };
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([]);
-  const [inputValue, setInputValue] = useState("");
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [isAnalyzingPlan, setIsAnalyzingPlan] = useState(false);
-  const [isGeneratingDiagrams, setIsGeneratingDiagrams] = useState(false);
-  const [selectedDiagram, setSelectedDiagram] = useState<{title: string, svg: string} | null>(null);
-  const [floorPlanImage, setFloorPlanImage] = useState<string | undefined>(undefined);
-  const [unifilarDiagram, setUnifilarDiagram] = useState<string | undefined>(undefined);
-  const [electricalDiagram, setElectricalDiagram] = useState<string | undefined>(undefined);
   const [technician, setTechnician] = useState<TechnicianInfo>({ id: '', name: '', license: '', phone: '' });
   const [technicians, setTechnicians] = useState<TechnicianInfo[]>(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('eletrocalc_technicians') : null;
@@ -605,9 +587,7 @@ export default function App() {
   useEffect(() => {
     // Only run initialization on mount or if there's no current project set
     if (projects.length === 0) {
-      // Actually, if projects is empty, we SHOULD encourage creating one.
-      // But if the user just deleted the last one, maybe we show an empty state.
-      // For now, let's just make sure it doesn't crash.
+      // Empty state handled in UI
     } else if (!currentProjectId) {
       setCurrentProjectId(projects[0].id);
       setRooms(projects[0].rooms);
@@ -616,9 +596,6 @@ export default function App() {
       setServiceEntranceLength(projects[0].serviceEntranceLength || 10);
       setServiceEntranceGauge(projects[0].serviceEntranceGauge || 16);
       setCalculateOnlyPole(projects[0].calculateOnlyPole || false);
-      setFloorPlanImage(projects[0].floorPlanImage);
-      setUnifilarDiagram(projects[0].unifilarDiagramImage);
-      setElectricalDiagram(projects[0].electricalDiagramImage);
       setTechnician(projects[0].technician || { id: '', name: '', license: '', phone: '' });
     }
   }, [projects.length, currentProjectId]);
@@ -629,23 +606,17 @@ export default function App() {
     updatedCustom?: ProjectMaterial[], 
     updatedPoleId?: string | null, 
     updatedOnlyPole?: boolean, 
-    updatedFloorPlan?: string, 
     updatedTechnician?: TechnicianInfo, 
     updatedSeLength?: number, 
-    updatedSeGauge?: number,
-    updatedUnifilar?: string,
-    updatedElectrical?: string
+    updatedSeGauge?: number
   ) => {
     const roomsToSave = updatedRooms || rooms;
     const customToSave = updatedCustom || customMaterials;
     const poleToSave = updatedPoleId !== undefined ? updatedPoleId : selectedPoleModelId;
     const onlyPoleToSave = updatedOnlyPole !== undefined ? updatedOnlyPole : calculateOnlyPole;
-    const floorPlanToSave = updatedFloorPlan !== undefined ? updatedFloorPlan : floorPlanImage;
     const technicianToSave = updatedTechnician !== undefined ? updatedTechnician : technician;
     const seLengthToSave = updatedSeLength !== undefined ? updatedSeLength : serviceEntranceLength;
     const seGaugeToSave = updatedSeGauge !== undefined ? updatedSeGauge : serviceEntranceGauge;
-    const unifilarToSave = updatedUnifilar !== undefined ? updatedUnifilar : unifilarDiagram;
-    const electricalToSave = updatedElectrical !== undefined ? updatedElectrical : electricalDiagram;
 
     if (currentProjectId) {
       setProjects(prev => {
@@ -656,9 +627,6 @@ export default function App() {
             customMaterials: customToSave, 
             selectedPoleModelId: poleToSave, 
             calculateOnlyPole: onlyPoleToSave, 
-            floorPlanImage: floorPlanToSave, 
-            unifilarDiagramImage: unifilarToSave,
-            electricalDiagramImage: electricalToSave,
             technician: technicianToSave,
             serviceEntranceLength: seLengthToSave,
             serviceEntranceGauge: seGaugeToSave
@@ -681,9 +649,6 @@ export default function App() {
       serviceEntranceLength: 10,
       serviceEntranceGauge: 16,
       calculateOnlyPole: false,
-      floorPlanImage: undefined,
-      unifilarDiagramImage: undefined,
-      electricalDiagramImage: undefined,
       createdAt: Date.now()
     };
     const updatedProjects = [...projects, newProject];
@@ -693,9 +658,6 @@ export default function App() {
     setServiceEntranceLength(10);
     setServiceEntranceGauge(16);
     setCalculateOnlyPole(false);
-    setFloorPlanImage(undefined);
-    setUnifilarDiagram(undefined);
-    setElectricalDiagram(undefined);
     setTechnician({ id: '', name: '', license: '', phone: '' });
     setRooms([]);
     setCustomMaterials([]);
@@ -728,9 +690,6 @@ export default function App() {
       setCurrentProjectId(null);
       setRooms([]);
       setCustomMaterials([]);
-      setFloorPlanImage(undefined);
-      setUnifilarDiagram(undefined);
-      setElectricalDiagram(undefined);
     } else if (currentProjectId === id) {
       const next = updated[0];
       setCurrentProjectId(next.id);
@@ -738,9 +697,6 @@ export default function App() {
       setCustomMaterials(next.customMaterials || []);
       setSelectedPoleModelId(next.selectedPoleModelId);
       setCalculateOnlyPole(next.calculateOnlyPole || false);
-      setFloorPlanImage(next.floorPlanImage);
-      setUnifilarDiagram(next.unifilarDiagramImage);
-      setElectricalDiagram(next.electricalDiagramImage);
       setTechnician(next.technician || { id: '', name: '', license: '', phone: '' });
     }
   };
@@ -767,9 +723,6 @@ export default function App() {
       setServiceEntranceLength(project.serviceEntranceLength || 10);
       setServiceEntranceGauge(project.serviceEntranceGauge || 16);
       setCalculateOnlyPole(project.calculateOnlyPole || false);
-      setFloorPlanImage(project.floorPlanImage);
-      setUnifilarDiagram(project.unifilarDiagramImage);
-      setElectricalDiagram(project.electricalDiagramImage);
       setTechnician(project.technician || { id: '', name: '', license: '', phone: '' });
     }
   };
@@ -962,146 +915,8 @@ export default function App() {
     setIsAddingRoom(true);
   };
 
-  const handleFloorPlanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !currentProjectId) return;
-
-    setIsAnalyzingPlan(true);
-    try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const fullBase64 = reader.result as string;
-          const base64Data = fullBase64.split(',')[1];
-          setFloorPlanImage(fullBase64);
-          
-          const data = await analyzeFloorPlan(base64Data);
-          
-          if (data.rooms && Array.isArray(data.rooms)) {
-            const newRooms = data.rooms.map((r: any) => {
-              const reqs = calculateRoomRequirements({
-                area: r.area,
-                perimeter: r.perimeter,
-                type: r.type as any,
-                name: r.name,
-                tues: []
-              });
-              return {
-                ...reqs,
-                id: crypto.randomUUID()
-              };
-            });
-            const updatedRooms = [...rooms, ...newRooms];
-            setRooms(updatedRooms);
-            
-            saveProject(
-              updatedRooms, 
-              undefined, 
-              undefined, 
-              undefined, 
-              fullBase64
-            );
-          }
-        } catch (err) {
-          console.error(err);
-          alert("Erro ao analisar planta: " + (err instanceof Error ? err.message : String(err)));
-        } finally {
-          setIsAnalyzingPlan(false);
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error(error);
-      setIsAnalyzingPlan(false);
-      alert("Erro ao processar arquivo.");
-    }
-  };
-
-  const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
-    const msg = inputValue;
-    setInputValue("");
-    setChatMessages(prev => [...prev, { role: 'user', text: msg }]);
-    
-    setIsAiLoading(true);
-    const advice = await getElectricalAdvice(msg, { rooms, totalPower });
-    setChatMessages(prev => [...prev, { role: 'ai', text: advice }]);
-    setIsAiLoading(false);
-  };
-
-  const handleGenerateDiagramsManual = async () => {
-    if (rooms.length === 0) {
-      alert("Adicione ou identifique cômodos antes de gerar os diagramas.");
-      return;
-    }
-    
-    setIsGeneratingDiagrams(true);
-    try {
-      const base64Data = floorPlanImage?.split(',')[1];
-      const diagrams = await generateDiagrams(rooms, base64Data);
-      if (diagrams) {
-        setUnifilarDiagram(diagrams.unifilar);
-        setElectricalDiagram(diagrams.electrical);
-        saveProject(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, diagrams.unifilar, diagrams.electrical);
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao gerar diagramas técnicos.");
-    } finally {
-      setIsGeneratingDiagrams(false);
-    }
-  };
-
   return (
     <div className="flex h-screen bg-[#F8FAFC]">
-      {/* Loading Overlay for AI Analysis & Diagram Generation */}
-      <AnimatePresence>
-        {(isAnalyzingPlan || isGeneratingDiagrams) && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-xl"
-          >
-            <div className="text-center p-8 bg-white/10 rounded-[3rem] border border-white/20 shadow-2xl max-w-sm w-full mx-4">
-              <div className="relative mb-8 flex justify-center">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                  className="w-24 h-24 rounded-full border-t-4 border-r-4 border-yellow-400 border-b-4 border-b-transparent border-l-4 border-l-transparent"
-                />
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="absolute inset-0 flex items-center justify-center"
-                >
-                  <Zap size={32} className="text-yellow-400 fill-yellow-400" />
-                </motion.div>
-              </div>
-              
-                <h2 className="text-2xl font-black text-white mb-2 uppercase tracking-tight">
-                  {isAnalyzingPlan ? "Analisando Projeto" : "Gerando Diagramas"}
-                </h2>
-                <p className="text-slate-400 text-sm font-medium mb-6">
-                  {isAnalyzingPlan 
-                    ? "Nossa Inteligência Artificial está processando sua planta e identificando os cômodos..." 
-                    : "Dimensionando circuitos e gerando esquemas técnicos em tempo real..."}
-                </p>
-              
-              <div className="flex gap-1 justify-center">
-                {[0, 1, 2].map((i) => (
-                  <motion.div
-                    key={i}
-                    animate={{ y: [0, -5, 0] }}
-                    transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.1 }}
-                    className="w-2 h-2 bg-yellow-400 rounded-full"
-                  />
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
       {/* Sidebar: Projects & Navigation */}
       <aside className="w-64 bg-slate-900 flex flex-col shrink-0 overflow-hidden relative border-r border-slate-800">
         <div className="p-6">
@@ -1280,7 +1095,7 @@ export default function App() {
                     onClick={() => {
                       const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
                       const poleModelName = poleModels.find(m => m.id === selectedPoleModelId)?.name;
-                      generateElectricalPDF(name, rooms, materialList, customMaterials, totalPower, catalog, totalBudget, poleModelName, floorPlanImage, technician);
+                      generateElectricalPDF(name, rooms, materialList, customMaterials, totalPower, catalog, totalBudget, poleModelName, technician);
                     }}
                     className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-yellow-400/20 active:scale-95 flex items-center gap-2"
                     title="Gera lista simplificada de materiais"
@@ -1292,7 +1107,7 @@ export default function App() {
                     onClick={async () => {
                       const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
                       const detailedList = generateDetailedMaterialList(rooms, selectedPoleModel);
-                      await generateDetailedElectricalPDF(name, detailedList, customMaterials, catalog, technician, floorPlanImage, unifilarDiagram, electricalDiagram);
+                      await generateDetailedElectricalPDF(name, detailedList, customMaterials, catalog, technician);
                     }}
                     className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-slate-900/20 active:scale-95 flex items-center gap-2 border border-white/10"
                     title="Gera orçamento detalhado agrupado por cômodos"
@@ -1405,34 +1220,6 @@ export default function App() {
                     Dimensionamento Elétrico por Cômodo
                   </h3>
                   <div className="flex items-center gap-2">
-                    {!floorPlanImage ? (
-                      <label className={cn(
-                        "cursor-pointer flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                        isAnalyzingPlan && "opacity-50 cursor-not-allowed pointer-events-none"
-                      )}>
-                        {isAnalyzingPlan ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                        {isAnalyzingPlan ? "Analisando..." : "Carregar Planta"}
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          accept="image/*" 
-                          onChange={handleFloorPlanUpload} 
-                          disabled={isAnalyzingPlan} 
-                        />
-                      </label>
-                    ) : (
-                      <button 
-                        onClick={() => {
-                          if (confirm("Deseja remover esta planta do projeto?")) {
-                            setFloorPlanImage(undefined);
-                            saveProject(undefined, undefined, undefined, undefined, "");
-                          }
-                        }}
-                        className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                      >
-                        <Trash2 size={16} /> Remover Planta
-                      </button>
-                    )}
                     <button 
                       onClick={() => setIsAddingRoom(true)}
                       className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
@@ -1442,102 +1229,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {floorPlanImage && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="relative group"
-                    >
-                      <div className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm group-hover:shadow-xl transition-all aspect-square w-full flex items-center justify-center p-4">
-                        <img src={floorPlanImage} alt="Planta Baixa" className="max-h-full max-w-full object-contain rounded-xl" />
-                      </div>
-                      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-xl border border-white/50 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-900 flex items-center gap-2">
-                          <Layout size={12} className="text-blue-600" /> Planta Baixa
-                        </p>
-                      </div>
-                    </motion.div>
 
-                    {unifilarDiagram ? (
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="relative group"
-                      >
-                        <div className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm group-hover:shadow-xl transition-all aspect-square w-full flex items-center justify-center p-4">
-                          <div dangerouslySetInnerHTML={{ __html: unifilarDiagram }} className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>svg]:max-h-full" onClick={() => setSelectedDiagram({ title: "Diagrama Unifilar", svg: unifilarDiagram })} />
-                        </div>
-                        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-xl border border-white/50 shadow-sm">
-                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-900 flex items-center gap-2">
-                            <Cable size={12} className="text-emerald-600" /> Diagrama Unifilar
-                          </p>
-                        </div>
-                        <button 
-                          onClick={handleGenerateDiagramsManual}
-                          className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md p-2 rounded-lg border border-slate-100 shadow-sm opacity-0 group-hover:opacity-100 transition-all text-slate-400 hover:text-amber-500"
-                          title="Regerar Diagrama"
-                        >
-                          <Sparkles size={14} />
-                        </button>
-                      </motion.div>
-                    ) : (
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="relative group cursor-pointer"
-                        onClick={handleGenerateDiagramsManual}
-                      >
-                        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2.5rem] overflow-hidden shadow-sm hover:shadow-xl hover:border-emerald-200 transition-all aspect-square w-full flex flex-col items-center justify-center p-8 text-center">
-                          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-200 mb-4 shadow-sm group-hover:text-emerald-500 group-hover:scale-110 transition-all">
-                            <Cable size={24} />
-                          </div>
-                          <p className="text-xs font-black uppercase tracking-widest text-slate-400 group-hover:text-emerald-600 transition-colors">Gerar Unifilar</p>
-                          <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">Clique para gerar o diagrama técnico unifilar da instalação</p>
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {electricalDiagram ? (
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="relative group"
-                      >
-                        <div className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm group-hover:shadow-xl transition-all aspect-square w-full flex items-center justify-center p-4">
-                          <div dangerouslySetInnerHTML={{ __html: electricalDiagram }} className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>svg]:max-h-full" onClick={() => setSelectedDiagram({ title: "Esquema Elétrico", svg: electricalDiagram })} />
-                        </div>
-                        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-xl border border-white/50 shadow-sm">
-                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-900 flex items-center gap-2">
-                            <Zap size={12} className="text-amber-600" /> Esquema Elétrico
-                          </p>
-                        </div>
-                        <button 
-                          onClick={handleGenerateDiagramsManual}
-                          className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md p-2 rounded-lg border border-slate-100 shadow-sm opacity-0 group-hover:opacity-100 transition-all text-slate-400 hover:text-amber-500"
-                          title="Regerar Esquema"
-                        >
-                          <Sparkles size={14} />
-                        </button>
-                      </motion.div>
-                    ) : (
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="relative group cursor-pointer"
-                        onClick={handleGenerateDiagramsManual}
-                      >
-                        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2.5rem] overflow-hidden shadow-sm hover:shadow-xl hover:border-amber-200 transition-all aspect-square w-full flex flex-col items-center justify-center p-8 text-center">
-                          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-200 mb-4 shadow-sm group-hover:text-amber-500 group-hover:scale-110 transition-all">
-                            <Zap size={24} />
-                          </div>
-                          <p className="text-xs font-black uppercase tracking-widest text-slate-400 group-hover:text-amber-600 transition-colors">Gerar Elétrico</p>
-                          <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">Clique para gerar o esquema sugerido de pontos e fiação</p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </div>
-                )}
 
                 {rooms.length === 0 ? (
                   <div className="bg-white border-2 border-dashed border-slate-200 rounded-[3rem] p-20 text-center">
@@ -1907,7 +1599,7 @@ export default function App() {
                           onClick={() => {
                             const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
                             const poleModelName = poleModels.find(m => m.id === selectedPoleModelId)?.name;
-                            generateElectricalPDF(name, rooms, materialList, customMaterials, totalPower, catalog, totalBudget, poleModelName, floorPlanImage, technician);
+                            generateElectricalPDF(name, rooms, materialList, customMaterials, totalPower, catalog, totalBudget, poleModelName, technician);
                           }}
                           className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-slate-800 disabled:text-slate-600 text-slate-900 py-5 rounded-[2rem] font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 shadow-xl flex items-center justify-center gap-2"
                         >
@@ -1919,7 +1611,7 @@ export default function App() {
                           onClick={async () => {
                             const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
                             const detailedList = generateDetailedMaterialList(rooms, selectedPoleModel);
-                            await generateDetailedElectricalPDF(name, detailedList, customMaterials, catalog, technician, floorPlanImage, unifilarDiagram, electricalDiagram);
+                            await generateDetailedElectricalPDF(name, detailedList, customMaterials, catalog, technician);
                           }}
                           className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-800 disabled:text-slate-600 text-white py-5 rounded-[2rem] font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 shadow-xl flex items-center justify-center gap-2 border border-white/5"
                         >
@@ -2815,158 +2507,11 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Diagram Viewer Modal */}
-      <AnimatePresence>
-        {selectedDiagram && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-12">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedDiagram(null)}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-6xl h-full max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col border border-slate-100"
-            >
-              <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-10">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-900 shadow-sm">
-                    {selectedDiagram.title.includes("Unifilar") ? <Cable size={24} /> : <Zap size={24} />}
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{selectedDiagram.title}</h3>
-                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-0.5">Visualização Técnica Detalhada</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setSelectedDiagram(null)}
-                  className="w-12 h-12 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl flex items-center justify-center transition-all active:scale-95 shadow-sm"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              <div className="flex-1 overflow-auto p-4 md:p-12 flex items-center justify-center bg-slate-50/50">
-                <div 
-                  dangerouslySetInnerHTML={{ __html: selectedDiagram.svg }} 
-                  className="w-full h-full min-h-[500px] flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>svg]:max-w-full [&>svg]:max-h-full" 
-                />
-              </div>
-              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-center">
-                <button 
-                  onClick={() => {
-                    const blob = new Blob([selectedDiagram.svg], { type: 'image/svg+xml' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `${selectedDiagram.title.toLowerCase().replace(/\s+/g, '_')}.svg`;
-                    link.click();
-                  }}
-                  className="bg-slate-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-3 active:scale-95 shadow-xl shadow-slate-900/20"
-                >
-                  <Download size={18} /> Baixar SVG
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
-      {/* Floating AI Assistant Bell */}
-      <button 
-        onClick={() => setChatOpen(true)}
-        className="fixed bottom-14 right-8 w-14 h-14 bg-yellow-400 text-slate-900 rounded-2xl flex items-center justify-center shadow-2xl z-30 hover:scale-105 transition-transform active:scale-95 group font-black"
-      >
-        <MessageSquare size={24} />
-      </button>
 
-      {/* AI Chat Window */}
-      <AnimatePresence>
-        {chatOpen && (
-          <>
-            {/* Invisible overlay to detect click outside for chat */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setChatOpen(false)}
-              className="fixed inset-0 z-30"
-            />
-            <motion.div 
-              initial={{ opacity: 0, y: 100, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 100, scale: 0.9 }}
-              className="fixed bottom-32 right-8 w-96 bg-white rounded-3xl shadow-2xl border border-slate-200 z-40 overflow-hidden flex flex-col max-h-[500px]"
-            >
-            <div className="bg-slate-900 p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-yellow-400 rounded-lg flex items-center justify-center text-slate-900 font-bold text-xs">AI</div>
-                <div>
-                  <h4 className="text-white font-bold text-xs uppercase tracking-widest">Consultoria NBR 5410</h4>
-                </div>
-              </div>
-              <button onClick={() => setChatOpen(false)} className="text-slate-400 hover:text-white">
-                <X size={18} />
-              </button>
-            </div>
 
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50">
-              {chatMessages.length === 0 && (
-                <div className="text-center py-6 px-4">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Engenheiro Digital</p>
-                  <p className="text-sm text-slate-600">Tire suas dúvidas técnicas sobre o orçamento e normas brasileiras agora mesmo.</p>
-                </div>
-              )}
-              {chatMessages.map((m, i) => (
-                <div key={i} className={cn(
-                  "flex",
-                  m.role === 'user' ? "justify-end" : "justify-start"
-                )}>
-                  <div className={cn(
-                    "max-w-[85%] p-4 rounded-xl text-xs leading-relaxed font-medium",
-                    m.role === 'user' ? "bg-slate-100 text-slate-800" : "bg-yellow-50 text-slate-800 border border-yellow-200"
-                  )}>
-                    {m.text}
-                  </div>
-                </div>
-              ))}
-              {isAiLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-slate-100 p-4 rounded-xl flex items-center gap-2">
-                    <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                    <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                    <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" />
-                  </div>
-                </div>
-              )}
-            </div>
 
-            <div className="p-4 bg-white border-t border-slate-100">
-              <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder="Pergunta técnica..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-4 pr-12 text-sm focus:ring-2 focus:ring-yellow-400 focus:outline-none font-medium"
-                  value={inputValue || ''}
-                  onChange={e => setInputValue(e.target.value)}
-                  onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
-                />
-                <button 
-                  onClick={handleSendMessage}
-                  disabled={isAiLoading || !inputValue.trim()}
-                  className="absolute right-1.5 top-1.5 w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center hover:bg-slate-800 disabled:opacity-50 transition-all"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </>
-      )}
-      </AnimatePresence>
+
     </div>
   );
 }
