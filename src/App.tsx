@@ -39,7 +39,8 @@ import {
   MousePointer2,
   Undo2,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RecharsTooltip } from 'recharts';
@@ -106,13 +107,15 @@ export default function App() {
         const updated = prev.map(t => t.id === editingTechId ? updatedTech : t);
         return updated;
       });
-      if (technician.id === editingTechId) {
+      if (technician.id === editingTechId || !technician.id) {
         setTechnician(updatedTech);
-        saveProject(undefined, undefined, undefined, undefined, undefined, updatedTech);
+        saveProject(undefined, undefined, undefined, undefined, undefined, undefined, updatedTech);
       }
     } else {
       const newTech = { ...currentTech, id: `tech-${Date.now()}` };
       setTechnicians(prev => [...prev, newTech]);
+      setTechnician(newTech);
+      saveProject(undefined, undefined, undefined, undefined, undefined, undefined, newTech);
     }
 
     setIsAddingTechnician(false);
@@ -705,7 +708,7 @@ export default function App() {
     if (technician.id === tech.id) {
       const empty = { id: '', name: '', license: '', phone: '' };
       setTechnician(empty);
-      saveProject(undefined, undefined, undefined, undefined, undefined, empty);
+      saveProject(undefined, undefined, undefined, undefined, undefined, undefined, empty);
     }
     setTechToDelete(null);
   };
@@ -1237,11 +1240,11 @@ export default function App() {
                             const tech = technicians.find(t => t.id === e.target.value);
                             if (tech) {
                               setTechnician(tech);
-                              saveProject(undefined, undefined, undefined, undefined, undefined, tech);
+                              saveProject(undefined, undefined, undefined, undefined, undefined, undefined, tech);
                             } else if (e.target.value === '') {
                               const emptyTech = { id: '', name: '', license: '', phone: '' };
                               setTechnician(emptyTech);
-                              saveProject(undefined, undefined, undefined, undefined, undefined, emptyTech);
+                              saveProject(undefined, undefined, undefined, undefined, undefined, undefined, emptyTech);
                             }
                           }}
                           className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
@@ -1498,7 +1501,7 @@ export default function App() {
                                               const dist = Math.sqrt(Math.pow(activePoints[0].x - activePoints[1].x, 2) + Math.pow(activePoints[0].y - activePoints[1].y, 2));
                                               const ratio = dist / realDist;
                                               setCalibrationRatio(ratio);
-                                              saveProject(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ratio);
+                                              saveProject(undefined, undefined, undefined, undefined, undefined, ratio);
                                             }
                                             setShowCalibrationInput(false);
                                             setIsCalibrating(false);
@@ -1839,7 +1842,7 @@ export default function App() {
                                 onChange={(e) => {
                                   const val = Number(e.target.value);
                                   setServiceEntranceLength(val);
-                                  saveProject(undefined, undefined, undefined, undefined, undefined, undefined, val);
+                                  saveProject(undefined, undefined, undefined, undefined, undefined, undefined, undefined, val);
                                 }}
                                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm"
                               />
@@ -1851,7 +1854,7 @@ export default function App() {
                                 onChange={(e) => {
                                   const val = Number(e.target.value);
                                   setServiceEntranceGauge(val);
-                                  saveProject(undefined, undefined, undefined, undefined, undefined, undefined, undefined, val);
+                                  saveProject(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, val);
                                 }}
                                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm"
                               >
@@ -1994,6 +1997,10 @@ export default function App() {
                       </h4>
                       
                       <div className="space-y-4 mb-12">
+                        <div className="flex justify-between items-center py-3 border-b border-white/5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Área Total</span>
+                          <span className="text-sm font-black mono-value">{rooms.reduce((acc, r) => acc + r.area, 0).toFixed(2)} m²</span>
+                        </div>
                         <div className="flex justify-between items-center py-3 border-b border-white/5">
                           <span className="text-[10px] font-bold text-slate-400 uppercase">Potência Total</span>
                           <span className="text-sm font-black mono-value">{totalPower} VA</span>

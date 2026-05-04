@@ -194,6 +194,7 @@ export function generateMaterialList(rooms: Room[], poleModel: EntryPoleModel | 
 
 export interface GroupedMaterials {
   roomName: string;
+  roomArea: number;
   materials: MaterialItem[];
 }
 
@@ -201,13 +202,15 @@ export interface DetailedMaterialList {
   byRoom: GroupedMaterials[];
   serviceEntrance: MaterialItem[];
   commonItems: MaterialItem[];
+  totalArea: number;
 }
 
 export function generateDetailedMaterialList(rooms: Room[], poleModel: EntryPoleModel | null = null): DetailedMaterialList {
   const result: DetailedMaterialList = {
     byRoom: [],
     serviceEntrance: [],
-    commonItems: []
+    commonItems: [],
+    totalArea: rooms.reduce((acc, r) => acc + r.area, 0)
   };
 
   // 1. Service Entrance (Padrão de Entrada)
@@ -282,6 +285,7 @@ export function generateDetailedMaterialList(rooms: Room[], poleModel: EntryPole
 
     result.byRoom.push({
       roomName: room.name,
+      roomArea: room.area,
       materials: roomMaterials
     });
   });

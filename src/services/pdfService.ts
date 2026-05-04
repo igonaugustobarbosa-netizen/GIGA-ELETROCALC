@@ -48,9 +48,11 @@ export function generateElectricalPDF(
   doc.setFontSize(14);
   doc.text('Resumo do Projeto', 14, 55);
   
+  const totalArea = rooms.reduce((acc, r) => acc + r.area, 0);
   const summaryBody = [
     ['Nome do Projeto', projectName],
     ['Total de Cômodos', rooms.length.toString()],
+    ['Área Total da Residência', `${totalArea.toFixed(2)} m²`],
     ['Potência Total Instalada', `${totalPower} VA`],
     ['Potência Total Estimada (kW)', `${(totalPower / 1000).toFixed(2)} kW`],
     ['Custo Total Estimado (Materiais)', `R$ ${totalBudget.toFixed(2)}`],
@@ -208,17 +210,18 @@ export async function generateDetailedElectricalPDF(
   doc.setFontSize(10);
   doc.text(`Projeto: ${projectName}`, 14, 26);
   doc.text('Orçamento Detalhado por Grupos/Cômodos', 14, 32);
+  doc.text(`Área Total da Residência: ${detailedList.totalArea.toFixed(2)} m²`, 14, 38);
 
   if (technician && technician.name) {
     const techText = `Responsável: ${technician.name}${technician.license ? ` (${technician.license})` : ''}${technician.phone ? ` - ${technician.phone}` : ''}`;
     doc.setFontSize(9);
-    doc.text(techText, 14, 38);
+    doc.text(techText, 14, 44);
   }
 
   doc.setFontSize(10);
   doc.text(`Data: ${date}`, 170, 32);
 
-  let currentY = 55;
+  let currentY = 60;
   let totalProjectSum = 0;
 
   // Function to add a table for a group
@@ -269,7 +272,7 @@ export async function generateDetailedElectricalPDF(
   // 3. By Room
   detailedList.byRoom.forEach((roomGroup: any) => {
     if (currentY > 230) { doc.addPage(); currentY = 20; }
-    currentY = addGroupTable(`Materiais: ${roomGroup.roomName}`, roomGroup.materials, currentY);
+    currentY = addGroupTable(`Materiais: ${roomGroup.roomName} (${roomGroup.roomArea.toFixed(2)} m²)`, roomGroup.materials, currentY);
   });
 
   // 4. Custom Materials
