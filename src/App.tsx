@@ -40,15 +40,17 @@ import {
   Undo2,
   ZoomIn,
   ZoomOut,
-  MessageSquare
+  MessageSquare,
+  GitCommit,
+  GitMerge
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RecharsTooltip } from 'recharts';
 import { cn } from './lib/utils';
 import { Room, MaterialItem, TUE, Project, ProjectMaterial, EntryPoleModel, TechnicianInfo } from './types';
-import { calculateRoomRequirements, generateMaterialList, generateDetailedMaterialList } from './services/electricalLogic';
-import { generateElectricalPDF, generateDetailedElectricalPDF } from './services/pdfService';
-import { ROOM_TYPES, DEFAULT_CATALOG } from './constants';
+import { calculateRoomRequirements, generateMaterialList, generateDetailedMaterialList, prepareDiagramData } from './services/electricalLogic';
+import { generateElectricalPDF, generateDetailedElectricalPDF, generateSingleLineDiagramPDF, generateFloorPlanPDF } from './services/pdfService';
+import { ROOM_TYPES, DEFAULT_CATALOG, CATALOG_NAMES } from './constants';
 import { calculateVoltageDrop } from './services/voltageDrop';
 
 const RoomIcon = ({ type, className }: { type: string; className?: string }) => {
@@ -764,6 +766,24 @@ export default function App() {
     }
   };
 
+  const groupAllLighting = () => {
+    const updatedRooms = rooms.map(r => ({ ...r, lightingCircuitId: 'L1' }));
+    setRooms(updatedRooms);
+    saveProject(updatedRooms);
+  };
+
+  const groupAllTugs = () => {
+    const updatedRooms = rooms.map(r => ({ ...r, tugCircuitId: 'T1' }));
+    setRooms(updatedRooms);
+    saveProject(updatedRooms);
+  };
+
+  const resetAllGrouping = () => {
+    const updatedRooms = rooms.map(r => ({ ...r, lightingCircuitId: undefined, tugCircuitId: undefined }));
+    setRooms(updatedRooms);
+    saveProject(updatedRooms);
+  };
+
   const updateCatalogItem = (key: string, price: number) => {
     setCatalog(prev => ({ ...prev, [key]: price }));
   };
@@ -952,27 +972,68 @@ export default function App() {
     setIsAddingRoom(true);
   };
 
+  const [isUploadingPlane, setIsUploadingPlane] = useState(false);
+
   const handleFloorPlanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentProjectId) return;
 
+    setIsUploadingPlane(true);
     try {
+      const isPDF = file.type === 'application/pdf';
+      
       const reader = new FileReader();
       reader.onload = async () => {
-        const fullBase64 = reader.result as string;
-        setFloorPlanImage(fullBase64);
+        let base64 = reader.result as string;
+
+        // If it's an image (not PDF), let's compress it to avoid localStorage limits
+        if (!isPDF && file.type.startsWith('image/')) {
+          const img = new Image();
+          img.src = base64;
+          await new Promise((resolve) => { img.onload = resolve; });
+
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Max resolution 1600px for speed and storage
+          const MAX_SIZE = 1600;
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          // Compress to JPEG with 0.6 quality (good balance)
+          base64 = canvas.toDataURL('image/jpeg', 0.6);
+        }
+
+        setFloorPlanImage(base64);
         saveProject(
           undefined, 
           undefined, 
           undefined, 
           undefined, 
-          fullBase64
+          base64
         );
+        setIsUploadingPlane(false);
       };
       reader.readAsDataURL(file);
     } catch (error) {
       console.error(error);
-      alert("Erro ao processar arquivo.");
+      alert("Erro ao processar arquivo. Tente uma foto menor ou outro formato.");
+      setIsUploadingPlane(false);
     }
   };
 
@@ -1165,6 +1226,18 @@ export default function App() {
                   </button>
 
                   <button 
+                    onClick={() => {
+                      const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
+                      const diagramData = prepareDiagramData(rooms, selectedPoleModel);
+                      generateSingleLineDiagramPDF(name, diagramData, technician);
+                    }}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 border border-slate-200"
+                    title="Gera diagrama unifilar técnico dos circuitos"
+                  >
+                    <GitCommit size={16} /> Diagrama
+                  </button>
+
+                  <button 
                     onClick={async () => {
                       const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
                       const detailedList = generateDetailedMaterialList(rooms, selectedPoleModel);
@@ -1283,12 +1356,17 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     {!floorPlanImage ? (
                       <label className="cursor-pointer flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-                        <Upload size={16} /> Carregar Planta/Foto
+                        {isUploadingPlane ? (
+                          <><Loader2 className="animate-spin" size={16} /> Processando...</>
+                        ) : (
+                          <><Upload size={16} /> Carregar Planta/Foto</>
+                        )}
                         <input 
                           type="file" 
                           className="hidden" 
-                          accept="image/*,application/pdf" 
+                          accept="image/*,application/pdf"
                           onChange={handleFloorPlanUpload} 
+                          disabled={isUploadingPlane}
                         />
                       </label>
                     ) : (
@@ -1312,6 +1390,46 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+
+                {rooms.length > 0 && (
+                  <div className="bg-slate-900 rounded-3xl p-6 mb-8 border border-white/10 shadow-2xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full -mr-32 -mt-32 blur-3xl transition-all group-hover:bg-blue-500/10" />
+                    <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-blue-400 border border-white/10 group-hover:border-blue-500/50 transition-all">
+                          <GitMerge size={20} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-white uppercase tracking-widest leading-tight">Agrupamento Global de Circuitos</h4>
+                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Combine cômodos em disjuntores únicos</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button 
+                          onClick={groupAllLighting}
+                          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-white/10 active:scale-95"
+                          title="Agrupa toda a iluminação em um único disjuntor"
+                        >
+                          Toda Ilum. em C1
+                        </button>
+                        <button 
+                          onClick={groupAllTugs}
+                          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-white/10 active:scale-95"
+                          title="Agrupa todas as tomadas gerais em um único disjuntor"
+                        >
+                          Toda TUG em C2
+                        </button>
+                        <button 
+                          onClick={resetAllGrouping}
+                          className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-red-500/20 active:scale-95"
+                          title="Separa cada cômodo em circuitos individuais novamente"
+                        >
+                          Circuitos Separados
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {floorPlanImage && (
                   <div className="mb-12">
@@ -1380,6 +1498,18 @@ export default function App() {
                               >
                                 <RotateCw size={16} />
                               </button>
+                              {!floorPlanImage.startsWith('data:application/pdf') && (
+                                <button 
+                                  onClick={() => {
+                                    const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
+                                    generateFloorPlanPDF(name, floorPlanImage, technician);
+                                  }}
+                                  className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+                                  title="Exportar Planta em PDF"
+                                >
+                                  <FileDown size={16} /> PDF da Planta
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
@@ -1403,7 +1533,7 @@ export default function App() {
                               ) : (
                                 <>
                                   <Square size={14} className="text-blue-400" />
-                                  Marque os cantos do cômodo (Polígono)
+                                  Marque os cantos do cômodo. Toque no último ponto para conferir a área.
                                 </>
                               )}
                               <button onClick={() => { setIsCalibrating(false); setIsMeasuringArea(false); setActivePoints([]); }} className="ml-4 hover:text-red-400 transition-colors">
@@ -1442,10 +1572,10 @@ export default function App() {
                               {/* Interaction Overlay */}
                               <div 
                                 className={cn(
-                                  "absolute inset-0 z-20",
+                                  "absolute inset-0 z-20 touch-none",
                                   (isCalibrating || isMeasuringArea) ? "cursor-crosshair active:scale-[0.99]" : "pointer-events-none"
                                 )}
-                                onMouseDown={(e) => {
+                                onClick={(e) => {
                                   if (!isCalibrating && !isMeasuringArea) return;
                                   
                                   const rect = e.currentTarget.getBoundingClientRect();
@@ -1535,7 +1665,7 @@ export default function App() {
                                 {(isCalibrating || showCalibrationInput) && activePoints.length > 0 && (
                                   <>
                                     {activePoints.map((p, i) => (
-                                      <circle key={i} cx={p.x} cy={p.y} r="6" fill="#FBBF24" stroke="white" strokeWidth="2" />
+                                      <circle key={i} cx={p.x} cy={p.y} r="8" fill="#FBBF24" stroke="white" strokeWidth="2" />
                                     ))}
                                     {activePoints.length === 2 && (
                                       <line 
@@ -1557,7 +1687,7 @@ export default function App() {
                                       strokeWidth="3"
                                     />
                                     {activePoints.map((p, i) => (
-                                      <circle key={i} cx={p.x} cy={p.y} r="6" fill="#3B82F6" stroke="white" strokeWidth="2" />
+                                      <circle key={i} cx={p.x} cy={p.y} r="8" fill="#3B82F6" stroke="white" strokeWidth="2" />
                                     ))}
                                     {activePoints.length > 2 && (
                                       <line 
@@ -2029,6 +2159,18 @@ export default function App() {
                         </button>
 
                         <button 
+                          disabled={rooms.length === 0}
+                          onClick={() => {
+                            const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
+                            const diagramData = prepareDiagramData(rooms, selectedPoleModel);
+                            generateSingleLineDiagramPDF(name, diagramData, technician);
+                          }}
+                          className="w-full bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white py-5 rounded-[2rem] font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 border border-white/10"
+                        >
+                          <GitCommit size={18} /> Diagrama Unifilar
+                        </button>
+
+                        <button 
                           disabled={materialList.length === 0 && customMaterials.length === 0}
                           onClick={async () => {
                             const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
@@ -2101,7 +2243,7 @@ export default function App() {
                               <div key={key} className="flex items-center justify-between group bg-slate-50/50 p-4 rounded-2xl border border-transparent hover:border-slate-100 transition-all">
                                 <div className="flex-1">
                                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1 truncate pr-4">
-                                    {key.includes('custom') ? key : key.split('-').join(' ').toUpperCase()}
+                                    {CATALOG_NAMES[key] || (key.includes('custom') ? key : key.split('-').join(' ').toUpperCase())}
                                   </label>
                                   <div className="flex items-center gap-2">
                                     <span className="text-sm font-black text-slate-900 mono-value">R$</span>
@@ -2534,6 +2676,39 @@ export default function App() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-5 h-5 bg-slate-900 rounded-lg flex items-center justify-center text-white">
+                      <Settings size={12} />
+                    </div>
+                    <label className="text-[10px] font-black text-slate-900 uppercase tracking-[0.15em]">Agrupamento de Circuitos</label>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-[8px] font-black text-slate-400 block mb-1.5 uppercase">ID Circ. Ilum.</span>
+                      <input 
+                        type="text" 
+                        placeholder="Ex: L1"
+                        value={currentRoom.lightingCircuitId || ''}
+                        onChange={e => handleRoomDataChange('lightingCircuitId', e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold text-xs"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[8px] font-black text-slate-400 block mb-1.5 uppercase">ID Circ. Tomadas</span>
+                      <input 
+                        type="text" 
+                        placeholder="Ex: T1"
+                        value={currentRoom.tugCircuitId || ''}
+                        onChange={e => handleRoomDataChange('tugCircuitId', e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold text-xs"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[8px] text-slate-400 mt-2 italic">* Peças com o mesmo ID compartilharão o mesmo disjuntor no orçamento e diagrama.</p>
                 </div>
 
                 {/* NBR 5410 Recommendations Section */}

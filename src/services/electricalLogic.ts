@@ -177,15 +177,30 @@ export function generateMaterialList(rooms: Room[], poleModel: EntryPoleModel | 
     );
       
     // Disjuntores
-    materials.push(
-      { id: 'breaker-10', name: 'Disjuntor Termomagnético 10A (Ilum.)', quantity: 1, unit: 'un', category: 'breaker' },
-      { id: 'breaker-20', name: 'Disjuntor Termomagnético 20A (Tomadas)', quantity: Math.max(1, Math.ceil(rooms.length / 3)), unit: 'un', category: 'breaker' }
-    );
+    const lightingCircuitIds = new Set(rooms.map(r => r.lightingCircuitId || `light-${r.id}`));
+    const tugCircuitIds = new Set(rooms.map(r => r.tugCircuitId || `tug-${r.id}`));
+    
+    let tueBreakers = 0;
+    let highPowerBreakers = 0;
 
-    // Adiciona disjuntores de maior corrente se houver TUEs pesados
-    const hasStrongTue = rooms.some(r => r.tues.some(t => t.power >= 5000));
-    if (hasStrongTue) {
-      materials.push({ id: 'breaker-40', name: 'Disjuntor Termomagnético 40A', quantity: 1, unit: 'un', category: 'breaker' });
+    rooms.forEach(room => {
+      room.tues.forEach(tue => {
+        if (tue.power >= 5000) highPowerBreakers += 1;
+        else tueBreakers += 1;
+      });
+    });
+
+    if (lightingCircuitIds.size > 0) {
+      materials.push({ id: 'breaker-10', name: 'Disjuntor Termomagnético 10A (Ilum.)', quantity: lightingCircuitIds.size, unit: 'un', category: 'breaker' });
+    }
+    if (tugCircuitIds.size > 0) {
+      materials.push({ id: 'breaker-20', name: 'Disjuntor Termomagnético 20A (Tomadas)', quantity: tugCircuitIds.size, unit: 'un', category: 'breaker' });
+    }
+    if (tueBreakers > 0) {
+      materials.push({ id: 'breaker-32', name: 'Disjuntor Termomagnético 32A (TUE)', quantity: tueBreakers, unit: 'un', category: 'breaker' });
+    }
+    if (highPowerBreakers > 0) {
+      materials.push({ id: 'breaker-40', name: 'Disjuntor Termomagnético 40A (TUE Pesado)', quantity: highPowerBreakers, unit: 'un', category: 'breaker' });
     }
   }
 
@@ -203,6 +218,129 @@ export interface DetailedMaterialList {
   serviceEntrance: MaterialItem[];
   commonItems: MaterialItem[];
   totalArea: number;
+}
+
+export interface CircuitInfo {
+  id: string;
+  name: string;
+  powerVA: number;
+  voltage: number;
+  current: number;
+  breaker: number;
+  gauge: number;
+  type: 'lighting' | 'sockets' | 'tug' | 'tue' | 'mixed';
+}
+
+export interface UnitaryDiagramData {
+  projectName: string;
+  mainBreaker: number;
+  mainGauge: number;
+  hasDR: boolean;
+  drValue: number;
+  hasDPS: boolean;
+  dpsCount: number;
+  circuits: CircuitInfo[];
+}
+
+export function prepareDiagramData(rooms: Room[], poleModel: EntryPoleModel | null): UnitaryDiagramData {
+  const circuits: CircuitInfo[] = [];
+  let circuitCounter = 1;
+
+  // Grouped Lighting Circuits
+  const lightingGroups: Record<string, { rooms: string[], power: number }> = {};
+  rooms.forEach(room => {
+    const cid = room.lightingCircuitId || `L-UN-ROOM-${room.id}`;
+    if (!lightingGroups[cid]) lightingGroups[cid] = { rooms: [], power: 0 };
+    lightingGroups[cid].rooms.push(room.name);
+    lightingGroups[cid].power += room.lights;
+  });
+
+  Object.entries(lightingGroups).forEach(([id, data]) => {
+    if (data.power > 0) {
+      circuits.push({
+        id: `C${circuitCounter++}`,
+        name: `Iluminação: ${data.rooms.length > 2 ? `${data.rooms[0]} + ${data.rooms.length - 1} áreas` : data.rooms.join(' e ')}`,
+        powerVA: data.power,
+        voltage: 127,
+        current: data.power / 127,
+        breaker: 10,
+        gauge: 1.5,
+        type: 'lighting'
+      });
+    }
+  });
+
+  // Grouped TUG Circuits
+  const tugGroups: Record<string, { rooms: string[], power: number }> = {};
+  rooms.forEach(room => {
+    const cid = room.tugCircuitId || `T-UN-ROOM-${room.id}`;
+    if (!tugGroups[cid]) tugGroups[cid] = { rooms: [], power: 0 };
+    tugGroups[cid].rooms.push(room.name);
+    tugGroups[cid].power += room.tugs * 100;
+  });
+
+  Object.entries(tugGroups).forEach(([id, data]) => {
+    if (data.power > 0) {
+      circuits.push({
+        id: `C${circuitCounter++}`,
+        name: `Tomadas (TUG): ${data.rooms.length > 2 ? `${data.rooms[0]} + ${data.rooms.length - 1} áreas` : data.rooms.join(' e ')}`,
+        powerVA: data.power,
+        voltage: 127,
+        current: data.power / 127,
+        breaker: 20,
+        gauge: 2.5,
+        type: 'tug'
+      });
+    }
+  });
+
+  // TUE Circuits (Always dedicated)
+  rooms.forEach(room => {
+    room.tues.forEach(tue => {
+      const isHighPower = tue.power >= 5000;
+      circuits.push({
+        id: `C${circuitCounter++}`,
+        name: `TUE: ${tue.description} (${room.name})`,
+        powerVA: tue.power,
+        voltage: tue.voltage,
+        current: tue.power / tue.voltage,
+        breaker: isHighPower ? 40 : 32,
+        gauge: isHighPower ? 6.0 : 4.0,
+        type: 'tue'
+      });
+    });
+  });
+
+  // Determine main breaker from pole model or estimate
+  let mainBreaker = 40;
+  let mainGauge = 10;
+
+  if (poleModel) {
+    // Try to find a breaker in the pole model items
+    const breakerItem = poleModel.items.find(item => item.category === 'breaker' || item.name.toLowerCase().includes('disjuntor'));
+    if (breakerItem) {
+      const match = breakerItem.name.match(/(\d+)A/);
+      if (match) mainBreaker = parseInt(match[1]);
+    }
+    
+    // Try to find cable gauge in pole model items
+    const cableItem = poleModel.items.find(item => item.category === 'cable' || item.name.toLowerCase().includes('cabo'));
+    if (cableItem) {
+      const match = cableItem.name.match(/(\d+)(\.\d+)?mm/);
+      if (match) mainGauge = parseFloat(match[1]);
+    }
+  }
+
+  return {
+    projectName: "Diagrama Unifilar",
+    mainBreaker,
+    mainGauge,
+    hasDR: rooms.length > 0,
+    drValue: 40,
+    hasDPS: rooms.length > 0,
+    dpsCount: 3,
+    circuits
+  };
 }
 
 export function generateDetailedMaterialList(rooms: Room[], poleModel: EntryPoleModel | null = null): DetailedMaterialList {
@@ -290,19 +428,38 @@ export function generateDetailedMaterialList(rooms: Room[], poleModel: EntryPole
     });
   });
 
-  // 3. Common Items (Quadro, Proteção, etc.)
+    // 3. Common Items (Quadro, Proteção, etc.)
   if (rooms.length > 0) {
     result.commonItems.push(
       { id: 'quadro-12', name: 'Quadro de Distribuição (Geral)', quantity: 1, unit: 'un', category: 'box' },
       { id: 'dr-40a', name: 'Dispositivo DR 40A (Geral)', quantity: 1, unit: 'un', category: 'breaker' },
-      { id: 'dps-20ka', name: 'Dispositivo DPS 20kA', quantity: 3, unit: 'un', category: 'breaker' },
-      { id: 'breaker-10', name: 'Disjuntor 10A (Iluminação)', quantity: 1, unit: 'un', category: 'breaker' },
-      { id: 'breaker-20', name: 'Disjuntor 20A (Tomadas)', quantity: Math.max(1, Math.ceil(rooms.length / 3)), unit: 'un', category: 'breaker' }
+      { id: 'dps-20ka', name: 'Dispositivo DPS 20kA', quantity: 3, unit: 'un', category: 'breaker' }
     );
 
-    const hasStrongTue = rooms.some(r => r.tues.some(t => t.power >= 5000));
-    if (hasStrongTue) {
-      result.commonItems.push({ id: 'breaker-40', name: 'Disjuntor 40A (TUEs Chirveiro/Ar)', quantity: 1, unit: 'un', category: 'breaker' });
+    const lightingCircuitIds = new Set(rooms.map(r => r.lightingCircuitId || `light-${r.id}`));
+    const tugCircuitIds = new Set(rooms.map(r => r.tugCircuitId || `tug-${r.id}`));
+    
+    let tueBreakers = 0;
+    let highPowerBreakers = 0;
+
+    rooms.forEach(room => {
+      room.tues.forEach(tue => {
+        if (tue.power >= 5000) highPowerBreakers += 1;
+        else tueBreakers += 1;
+      });
+    });
+
+    if (lightingCircuitIds.size > 0) {
+      result.commonItems.push({ id: 'breaker-10', name: 'Disjuntor 10A (Iluminação)', quantity: lightingCircuitIds.size, unit: 'un', category: 'breaker' });
+    }
+    if (tugCircuitIds.size > 0) {
+      result.commonItems.push({ id: 'breaker-20', name: 'Disjuntor 20A (Tomadas)', quantity: tugCircuitIds.size, unit: 'un', category: 'breaker' });
+    }
+    if (tueBreakers > 0) {
+      result.commonItems.push({ id: 'breaker-32', name: 'Disjuntor 32A (TUE)', quantity: tueBreakers, unit: 'un', category: 'breaker' });
+    }
+    if (highPowerBreakers > 0) {
+      result.commonItems.push({ id: 'breaker-40', name: 'Disjuntor 40A (TUE Pesado)', quantity: highPowerBreakers, unit: 'un', category: 'breaker' });
     }
   }
 

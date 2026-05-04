@@ -16,6 +16,8 @@ export interface Room {
   tugsLength?: number; // m
   tugsGauge?: number; // mm2
   tues: TUE[]; // Specific Purpose Outlets
+  lightingCircuitId?: string;
+  tugCircuitId?: string;
 }
 
 export interface TUE {
