@@ -64,6 +64,8 @@ export interface Project {
   serviceEntranceLength?: number; // m
   serviceEntranceGauge?: number; // mm2
   calculateOnlyPole: boolean;
+  floorPlanImage?: string;
+  calibrationRatio?: number; // pixels per meter
   technician?: TechnicianInfo;
   createdAt: number;
 }

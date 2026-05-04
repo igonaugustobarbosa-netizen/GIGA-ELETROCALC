@@ -16,6 +16,7 @@ export function generateElectricalPDF(
   catalog: Record<string, number>, 
   totalBudget: number,
   poleModelName?: string,
+  floorPlanImage?: string,
   technician?: { name: string; license: string; phone: string }
 ) {
   const doc = new jsPDF();
@@ -123,6 +124,24 @@ export function generateElectricalPDF(
   doc.text('Observação: Este orçamento é uma estimativa baseada na NBR 5410. Consulte sempre um engenheiro eletricista.', 14, finalY);
   doc.text('Gerado por Giga EletroCalc Pro.', 14, finalY + 5);
 
+  // Add Floor Plan page if exists and is an image
+  if (floorPlanImage && !floorPlanImage.startsWith('data:application/pdf')) {
+    doc.addPage();
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(14);
+    doc.text('Anexo: Planta Baixa', 14, 20);
+    
+    try {
+      // Calculate dimensions to fit in page
+      const imgWidth = 180;
+      const imgHeight = 160;
+      doc.addImage(floorPlanImage, 'JPEG', 15, 30, imgWidth, imgHeight, undefined, 'FAST');
+    } catch (e) {
+      console.error('Error adding image to PDF:', e);
+      doc.text('Erro ao carregar imagem da planta.', 14, 40);
+    }
+  }
+
   // Footer on all pages
   const pageCount = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
@@ -172,7 +191,8 @@ export async function generateDetailedElectricalPDF(
   detailedList: any, // DetailedMaterialList from electricalLogic
   customMaterials: ProjectMaterial[],
   catalog: Record<string, number>,
-  technician?: { name: string; license: string; phone: string }
+  technician?: { name: string; license: string; phone: string },
+  floorPlanImage?: string
 ) {
   const doc = new jsPDF();
   const date = new Date().toLocaleDateString('pt-BR');
@@ -295,6 +315,19 @@ export async function generateDetailedElectricalPDF(
   doc.setFont('helvetica', 'bold');
   doc.text('VALOR TOTAL ESTIMADO DO ORÇAMENTO:', 20, currentY + 10);
   doc.text(`R$ ${totalProjectSum.toFixed(2)}`, 190, currentY + 10, { align: 'right' });
+
+  // Add Floor Plan
+  if (floorPlanImage && !floorPlanImage.startsWith('data:application/pdf')) {
+    doc.addPage();
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(14);
+    doc.text('Anexo: Planta Baixa', 14, 20);
+    try {
+      doc.addImage(floorPlanImage, 'JPEG', 15, 30, 180, 160, undefined, 'FAST');
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   // Footers
   const pageCount = (doc as any).internal.getNumberOfPages();

@@ -28,8 +28,18 @@ import {
   FileSpreadsheet,
   Settings,
   FileDown,
+  Upload,
+  Loader2,
   User,
-  Download
+  RotateCw,
+  Ruler,
+  Maximize2,
+  Square,
+  Check,
+  MousePointer2,
+  Undo2,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RecharsTooltip } from 'recharts';
@@ -124,6 +134,15 @@ export default function App() {
     return saved ? { ...DEFAULT_CATALOG, ...JSON.parse(saved) } : DEFAULT_CATALOG;
   });
   const [selectedPoleModelId, setSelectedPoleModelId] = useState<string | null>(null);
+  const [floorPlanImage, setFloorPlanImage] = useState<string | undefined>(undefined);
+  const [calibrationRatio, setCalibrationRatio] = useState<number | undefined>(undefined);
+  const [calibrationInput, setCalibrationInput] = useState<string>("5");
+  const [showCalibrationInput, setShowCalibrationInput] = useState(false);
+  const [isCalibrating, setIsCalibrating] = useState(false);
+  const [isMeasuringArea, setIsMeasuringArea] = useState(false);
+  const [activePoints, setActivePoints] = useState<{x: number, y: number}[]>([]);
+  const [measurementResult, setMeasurementResult] = useState<{ area: number; perimeter: number } | null>(null);
+
   const [serviceEntranceLength, setServiceEntranceLength] = useState<number>(10);
   const [serviceEntranceGauge, setServiceEntranceGauge] = useState<number>(16);
   const [isAddingCatalogItem, setIsAddingCatalogItem] = useState(false);
@@ -596,6 +615,8 @@ export default function App() {
       setServiceEntranceLength(projects[0].serviceEntranceLength || 10);
       setServiceEntranceGauge(projects[0].serviceEntranceGauge || 16);
       setCalculateOnlyPole(projects[0].calculateOnlyPole || false);
+      setFloorPlanImage(projects[0].floorPlanImage);
+      setCalibrationRatio(projects[0].calibrationRatio);
       setTechnician(projects[0].technician || { id: '', name: '', license: '', phone: '' });
     }
   }, [projects.length, currentProjectId]);
@@ -606,6 +627,8 @@ export default function App() {
     updatedCustom?: ProjectMaterial[], 
     updatedPoleId?: string | null, 
     updatedOnlyPole?: boolean, 
+    updatedFloorPlan?: string,
+    updatedCalibration?: number,
     updatedTechnician?: TechnicianInfo, 
     updatedSeLength?: number, 
     updatedSeGauge?: number
@@ -614,6 +637,8 @@ export default function App() {
     const customToSave = updatedCustom || customMaterials;
     const poleToSave = updatedPoleId !== undefined ? updatedPoleId : selectedPoleModelId;
     const onlyPoleToSave = updatedOnlyPole !== undefined ? updatedOnlyPole : calculateOnlyPole;
+    const floorPlanToSave = updatedFloorPlan !== undefined ? updatedFloorPlan : floorPlanImage;
+    const calibrationToSave = updatedCalibration !== undefined ? updatedCalibration : calibrationRatio;
     const technicianToSave = updatedTechnician !== undefined ? updatedTechnician : technician;
     const seLengthToSave = updatedSeLength !== undefined ? updatedSeLength : serviceEntranceLength;
     const seGaugeToSave = updatedSeGauge !== undefined ? updatedSeGauge : serviceEntranceGauge;
@@ -627,6 +652,8 @@ export default function App() {
             customMaterials: customToSave, 
             selectedPoleModelId: poleToSave, 
             calculateOnlyPole: onlyPoleToSave, 
+            floorPlanImage: floorPlanToSave,
+            calibrationRatio: calibrationToSave,
             technician: technicianToSave,
             serviceEntranceLength: seLengthToSave,
             serviceEntranceGauge: seGaugeToSave
@@ -649,6 +676,8 @@ export default function App() {
       serviceEntranceLength: 10,
       serviceEntranceGauge: 16,
       calculateOnlyPole: false,
+      floorPlanImage: undefined,
+      calibrationRatio: undefined,
       createdAt: Date.now()
     };
     const updatedProjects = [...projects, newProject];
@@ -658,6 +687,7 @@ export default function App() {
     setServiceEntranceLength(10);
     setServiceEntranceGauge(16);
     setCalculateOnlyPole(false);
+    setFloorPlanImage(undefined);
     setTechnician({ id: '', name: '', license: '', phone: '' });
     setRooms([]);
     setCustomMaterials([]);
@@ -697,6 +727,8 @@ export default function App() {
       setCustomMaterials(next.customMaterials || []);
       setSelectedPoleModelId(next.selectedPoleModelId);
       setCalculateOnlyPole(next.calculateOnlyPole || false);
+      setFloorPlanImage(next.floorPlanImage);
+      setCalibrationRatio(next.calibrationRatio);
       setTechnician(next.technician || { id: '', name: '', license: '', phone: '' });
     }
   };
@@ -723,6 +755,8 @@ export default function App() {
       setServiceEntranceLength(project.serviceEntranceLength || 10);
       setServiceEntranceGauge(project.serviceEntranceGauge || 16);
       setCalculateOnlyPole(project.calculateOnlyPole || false);
+      setFloorPlanImage(project.floorPlanImage);
+      setCalibrationRatio(project.calibrationRatio);
       setTechnician(project.technician || { id: '', name: '', license: '', phone: '' });
     }
   };
@@ -915,6 +949,30 @@ export default function App() {
     setIsAddingRoom(true);
   };
 
+  const handleFloorPlanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentProjectId) return;
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const fullBase64 = reader.result as string;
+        setFloorPlanImage(fullBase64);
+        saveProject(
+          undefined, 
+          undefined, 
+          undefined, 
+          undefined, 
+          fullBase64
+        );
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao processar arquivo.");
+    }
+  };
+
   return (
     <div className="flex h-screen bg-[#F8FAFC]">
       {/* Sidebar: Projects & Navigation */}
@@ -1095,7 +1153,7 @@ export default function App() {
                     onClick={() => {
                       const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
                       const poleModelName = poleModels.find(m => m.id === selectedPoleModelId)?.name;
-                      generateElectricalPDF(name, rooms, materialList, customMaterials, totalPower, catalog, totalBudget, poleModelName, technician);
+                      generateElectricalPDF(name, rooms, materialList, customMaterials, totalPower, catalog, totalBudget, poleModelName, floorPlanImage, technician);
                     }}
                     className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-yellow-400/20 active:scale-95 flex items-center gap-2"
                     title="Gera lista simplificada de materiais"
@@ -1107,7 +1165,7 @@ export default function App() {
                     onClick={async () => {
                       const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
                       const detailedList = generateDetailedMaterialList(rooms, selectedPoleModel);
-                      await generateDetailedElectricalPDF(name, detailedList, customMaterials, catalog, technician);
+                      await generateDetailedElectricalPDF(name, detailedList, customMaterials, catalog, technician, floorPlanImage);
                     }}
                     className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-slate-900/20 active:scale-95 flex items-center gap-2 border border-white/10"
                     title="Gera orçamento detalhado agrupado por cômodos"
@@ -1220,6 +1278,29 @@ export default function App() {
                     Dimensionamento Elétrico por Cômodo
                   </h3>
                   <div className="flex items-center gap-2">
+                    {!floorPlanImage ? (
+                      <label className="cursor-pointer flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                        <Upload size={16} /> Carregar Planta/Foto
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          accept="image/*,application/pdf" 
+                          onChange={handleFloorPlanUpload} 
+                        />
+                      </label>
+                    ) : (
+                      <button 
+                        onClick={() => {
+                          if (confirm("Deseja remover esta planta do projeto?")) {
+                            setFloorPlanImage(undefined);
+                            saveProject(undefined, undefined, undefined, undefined, "");
+                          }
+                        }}
+                        className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                      >
+                        <Trash2 size={16} /> Remover Planta
+                      </button>
+                    )}
                     <button 
                       onClick={() => setIsAddingRoom(true)}
                       className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
@@ -1229,7 +1310,341 @@ export default function App() {
                   </div>
                 </div>
 
+                {floorPlanImage && (
+                  <div className="mb-12">
+                    <motion.div 
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="relative bg-white border border-slate-100 rounded-[3rem] overflow-hidden shadow-2xl"
+                    >
+                      <div className="p-8 border-b border-slate-50 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
+                            <Layout size={24} />
+                          </div>
+                          <div>
+                            <h4 className="text-xl font-black text-slate-900 uppercase tracking-tight">Cálculo por Planta Baixa</h4>
+                            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
+                              {calibrationRatio 
+                                ? `Escala: ${(calibrationRatio).toFixed(2)} px/m` 
+                                : "Calibre a escala para iniciar as medições"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!calibrationRatio ? (
+                            <button 
+                              onClick={() => {
+                                setIsCalibrating(true);
+                                setIsMeasuringArea(false);
+                                setActivePoints([]);
+                              }}
+                              disabled={isCalibrating}
+                              className={cn(
+                                "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                                isCalibrating ? "bg-amber-100 text-amber-600 border border-amber-200" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                              )}
+                            >
+                              <Ruler size={16} /> Calibrar Escala
+                            </button>
+                          ) : (
+                            <>
+                              <button 
+                                onClick={() => {
+                                  setIsMeasuringArea(!isMeasuringArea);
+                                  setIsCalibrating(false);
+                                  setActivePoints([]);
+                                  setMeasurementResult(null);
+                                }}
+                                className={cn(
+                                  "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                                  isMeasuringArea ? "bg-blue-100 text-blue-600 border border-blue-200" : "bg-blue-600 text-white hover:bg-blue-700"
+                                )}
+                              >
+                                {isMeasuringArea ? <MousePointer2 size={16} /> : <Square size={16} />}
+                                {isMeasuringArea ? "Finalizar Medição" : "Medir Cômodo"}
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  if (confirm("Deseja recalibrar a escala?")) {
+                                    setCalibrationRatio(undefined);
+                                    setIsCalibrating(true);
+                                    setActivePoints([]);
+                                  }
+                                }}
+                                className="bg-slate-100 text-slate-400 hover:text-slate-600 p-2 rounded-xl transition-all"
+                                title="Recalibrar"
+                              >
+                                <RotateCw size={16} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
 
+                      <div className="relative bg-slate-50/50 p-4 flex flex-col items-center justify-center min-h-[500px]">
+                        {/* Overlay Instructions */}
+                        <AnimatePresence>
+                          {(isCalibrating || isMeasuringArea) && (
+                            <motion.div 
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.9 }}
+                              className="absolute top-8 left-1/2 -translate-x-1/2 z-20 bg-slate-900/90 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl backdrop-blur-md flex items-center gap-3 border border-white/10"
+                            >
+                              {isCalibrating ? (
+                                <>
+                                  <Ruler size={14} className="text-amber-400" />
+                                  Clique em dois pontos com distância conhecida
+                                </>
+                              ) : (
+                                <>
+                                  <Square size={14} className="text-blue-400" />
+                                  Marque os cantos do cômodo (Polígono)
+                                </>
+                              )}
+                              <button onClick={() => { setIsCalibrating(false); setIsMeasuringArea(false); setActivePoints([]); }} className="ml-4 hover:text-red-400 transition-colors">
+                                <X size={14} />
+                              </button>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        <div className="relative group overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                          {floorPlanImage.startsWith('data:application/pdf') ? (
+                            <div className="flex flex-col items-center justify-center p-12 bg-slate-50 min-h-[400px]">
+                              <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center text-slate-400 mb-6">
+                                <FileDown size={40} />
+                              </div>
+                              <h5 className="text-xl font-black text-slate-900 uppercase">PDF Carregado</h5>
+                              <p className="text-slate-500 text-sm mt-2 mb-8 text-center max-w-md">Para realizar medições diretas na planta, utilize uma imagem (JPG/PNG). PDFs podem ser visualizados mas não suportam marcação de pontos.</p>
+                              <a 
+                                href={floorPlanImage} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="bg-slate-900 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl"
+                              >
+                                Abrir PDF em Nova Aba
+                              </a>
+                            </div>
+                          ) : (
+                            <div className="relative inline-block mx-auto min-w-min">
+                              <img 
+                                src={floorPlanImage} 
+                                alt="Planta Baixa" 
+                                className="max-h-[800px] max-w-full block select-none" 
+                                draggable={false}
+                              />
+                              
+                              {/* Interaction Overlay */}
+                              <div 
+                                className={cn(
+                                  "absolute inset-0 z-20",
+                                  (isCalibrating || isMeasuringArea) ? "cursor-crosshair active:scale-[0.99]" : "pointer-events-none"
+                                )}
+                                onMouseDown={(e) => {
+                                  if (!isCalibrating && !isMeasuringArea) return;
+                                  
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const x = e.clientX - rect.left;
+                                  const y = e.clientY - rect.top;
+                                  
+                                  if (isCalibrating) {
+                                    if (activePoints.length >= 2) return;
+                                    const newPoints = [...activePoints, { x, y }];
+                                    setActivePoints(newPoints);
+                                    
+                                    if (newPoints.length === 2) {
+                                      setShowCalibrationInput(true);
+                                    }
+                                  } else if (isMeasuringArea) {
+                                    setActivePoints([...activePoints, { x, y }]);
+                                  }
+                                }}
+                              />
+
+                              {/* Calibration Input Modal (Small and focused) */}
+                              <AnimatePresence>
+                                {showCalibrationInput && (
+                                  <motion.div 
+                                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                                    className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
+                                  >
+                                    <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-100 max-w-xs w-full">
+                                      <h6 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center gap-2">
+                                        <Ruler size={14} className="text-amber-500" /> Definir Escala
+                                      </h6>
+                                      <p className="text-sm text-slate-600 font-medium leading-relaxed mb-6">
+                                        Informe a distância real (em metros) entre os dois pontos marcados:
+                                      </p>
+                                      <div className="relative mb-6">
+                                        <input 
+                                          type="number" 
+                                          value={calibrationInput}
+                                          onChange={(e) => setCalibrationInput(e.target.value)}
+                                          className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-slate-900 font-black text-xl focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all"
+                                          placeholder="Ex: 5"
+                                          autoFocus
+                                        />
+                                        <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-black">METROS</span>
+                                      </div>
+                                      <div className="flex gap-3">
+                                        <button 
+                                          onClick={() => {
+                                            const realDist = parseFloat(calibrationInput);
+                                            if (realDist > 0 && activePoints.length === 2) {
+                                              const dist = Math.sqrt(Math.pow(activePoints[0].x - activePoints[1].x, 2) + Math.pow(activePoints[0].y - activePoints[1].y, 2));
+                                              const ratio = dist / realDist;
+                                              setCalibrationRatio(ratio);
+                                              saveProject(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ratio);
+                                            }
+                                            setShowCalibrationInput(false);
+                                            setIsCalibrating(false);
+                                            setActivePoints([]);
+                                          }}
+                                          className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all"
+                                        >
+                                          Confirmar
+                                        </button>
+                                        <button 
+                                          onClick={() => {
+                                            setShowCalibrationInput(false);
+                                            setIsCalibrating(false);
+                                            setActivePoints([]);
+                                          }}
+                                          className="px-6 bg-slate-100 text-slate-400 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                        >
+                                          Sair
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                              
+                              {/* SVG Overlay for Drawing */}
+                              <svg 
+                                className="absolute inset-0 w-full h-full pointer-events-none z-10"
+                              >
+                                {/* Drawing Calibration Line */}
+                                {(isCalibrating || showCalibrationInput) && activePoints.length > 0 && (
+                                  <>
+                                    {activePoints.map((p, i) => (
+                                      <circle key={i} cx={p.x} cy={p.y} r="6" fill="#FBBF24" stroke="white" strokeWidth="2" />
+                                    ))}
+                                    {activePoints.length === 2 && (
+                                      <line 
+                                        x1={activePoints[0].x} y1={activePoints[0].y} 
+                                        x2={activePoints[1].x} y2={activePoints[1].y} 
+                                        stroke="#FBBF24" strokeWidth="3" strokeDasharray="6 4"
+                                      />
+                                    )}
+                                  </>
+                                )}
+
+                                {/* Drawing Area Polygon */}
+                                {isMeasuringArea && activePoints.length > 0 && (
+                                  <>
+                                    <polyline 
+                                      points={activePoints.map(p => `${p.x},${p.y}`).join(' ')}
+                                      fill="rgba(59, 130, 246, 0.2)"
+                                      stroke="#3B82F6"
+                                      strokeWidth="3"
+                                    />
+                                    {activePoints.map((p, i) => (
+                                      <circle key={i} cx={p.x} cy={p.y} r="6" fill="#3B82F6" stroke="white" strokeWidth="2" />
+                                    ))}
+                                    {activePoints.length > 2 && (
+                                      <line 
+                                        x1={activePoints[activePoints.length-1].x} y1={activePoints[activePoints.length-1].y}
+                                        x2={activePoints[0].x} y2={activePoints[0].y}
+                                        stroke="#3B82F6" strokeWidth="2" strokeDasharray="6 6"
+                                      />
+                                    )}
+                                  </>
+                                )}
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Results Hub */}
+                        {isMeasuringArea && activePoints.length > 2 && calibrationRatio && (
+                          <div className="mt-8 flex flex-wrap justify-center gap-4">
+                            <div className="bg-white px-6 py-4 rounded-2xl border border-slate-100 shadow-xl flex flex-col items-center">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Área Calculada</p>
+                              <p className="text-2xl font-black text-slate-900">
+                                {(() => {
+                                  let area = 0;
+                                  for (let i = 0; i < activePoints.length; i++) {
+                                    const p1 = activePoints[i];
+                                    const p2 = activePoints[(i + 1) % activePoints.length];
+                                    area += (p1.x * p2.y) - (p2.x * p1.y);
+                                  }
+                                  const realArea = Math.abs(area / 2) / Math.pow(calibrationRatio, 2);
+                                  return realArea.toFixed(2);
+                                })()} m²
+                              </p>
+                            </div>
+                            <div className="bg-white px-6 py-4 rounded-2xl border border-slate-100 shadow-xl flex flex-col items-center">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Perímetro</p>
+                              <p className="text-2xl font-black text-slate-900">
+                                {(() => {
+                                  let perimeter = 0;
+                                  for (let i = 0; i < activePoints.length; i++) {
+                                    const p1 = activePoints[i];
+                                    const p2 = activePoints[(i + 1) % activePoints.length];
+                                    perimeter += Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+                                  }
+                                  const realPerimeter = perimeter / calibrationRatio;
+                                  return realPerimeter.toFixed(2);
+                                })()} m
+                              </p>
+                            </div>
+                            <button 
+                              onClick={() => {
+                                let area = 0;
+                                for (let i = 0; i < activePoints.length; i++) {
+                                  const p1 = activePoints[i];
+                                  const p2 = activePoints[(i + 1) % activePoints.length];
+                                  area += (p1.x * p2.y) - (p2.x * p1.y);
+                                }
+                                const realArea = parseFloat(Math.abs(area / 2 / Math.pow(calibrationRatio, 2)).toFixed(2));
+                                
+                                let perimeter = 0;
+                                for (let i = 0; i < activePoints.length; i++) {
+                                  const p1 = activePoints[i];
+                                  const p2 = activePoints[(i + 1) % activePoints.length];
+                                  perimeter += Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+                                }
+                                const realPerimeter = parseFloat((perimeter / calibrationRatio).toFixed(2));
+
+                                // Pre-calculate NBR requirements for the current room type
+                                const specs = calculateNBR(currentRoom.type || 'living', realArea, realPerimeter);
+
+                                setCurrentRoom(prev => ({ 
+                                  ...prev, 
+                                  area: realArea, 
+                                  perimeter: realPerimeter,
+                                  lights: specs.lights,
+                                  tugs: specs.tugs
+                                }));
+                                setIsAddingRoom(true);
+                                setIsMeasuringArea(false);
+                                setActivePoints([]);
+                              }}
+                              className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-3 shadow-xl"
+                            >
+                              <Plus size={16} /> Usar na Criação do Cômodo
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
 
                 {rooms.length === 0 ? (
                   <div className="bg-white border-2 border-dashed border-slate-200 rounded-[3rem] p-20 text-center">
@@ -1599,7 +2014,7 @@ export default function App() {
                           onClick={() => {
                             const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
                             const poleModelName = poleModels.find(m => m.id === selectedPoleModelId)?.name;
-                            generateElectricalPDF(name, rooms, materialList, customMaterials, totalPower, catalog, totalBudget, poleModelName, technician);
+                            generateElectricalPDF(name, rooms, materialList, customMaterials, totalPower, catalog, totalBudget, poleModelName, floorPlanImage, technician);
                           }}
                           className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-slate-800 disabled:text-slate-600 text-slate-900 py-5 rounded-[2rem] font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 shadow-xl flex items-center justify-center gap-2"
                         >
@@ -1611,7 +2026,7 @@ export default function App() {
                           onClick={async () => {
                             const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
                             const detailedList = generateDetailedMaterialList(rooms, selectedPoleModel);
-                            await generateDetailedElectricalPDF(name, detailedList, customMaterials, catalog, technician);
+                            await generateDetailedElectricalPDF(name, detailedList, customMaterials, catalog, technician, floorPlanImage);
                           }}
                           className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-800 disabled:text-slate-600 text-white py-5 rounded-[2rem] font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 shadow-xl flex items-center justify-center gap-2 border border-white/5"
                         >
