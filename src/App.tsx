@@ -1657,7 +1657,7 @@ export default function App() {
                               initial={{ opacity: 0, scale: 0.9 }}
                               animate={{ opacity: 1, scale: 1 }}
                               exit={{ opacity: 0, scale: 0.9 }}
-                              className="absolute top-8 left-1/2 -translate-x-1/2 z-20 bg-slate-900/90 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl backdrop-blur-md flex items-center gap-3 border border-white/10"
+                              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 bg-slate-900/90 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl backdrop-blur-md flex items-center gap-3 border border-white/10 w-max max-w-[90vw]"
                             >
                               {isCalibrating ? (
                                 <>
@@ -1706,28 +1706,30 @@ export default function App() {
                               </div>
                             </div>
                           ) : (
-                            <div className="relative inline-block mx-auto min-w-min">
-                              <img 
-                                src={floorPlanImage} 
-                                alt="Planta Baixa" 
-                                className="max-h-[800px] max-w-full block select-none" 
-                                draggable={false}
-                              />
-                              
-                              {/* Interaction Overlay */}
-                              <div 
-                                className={cn(
-                                  "absolute inset-0 z-20 touch-none",
-                                  (isCalibrating || isMeasuringArea) ? "cursor-crosshair active:scale-[0.99]" : "pointer-events-none"
-                                )}
-                                onClick={(e) => {
-                                  if (!isCalibrating && !isMeasuringArea) return;
+                            <div className="flex flex-col items-center justify-center p-4 bg-slate-50 w-full overflow-hidden">
+                              <div className="relative w-full overflow-auto bg-white rounded-xl border border-slate-200" style={{ maxHeight: '75vh' }}>
+                                <div className="relative inline-block min-w-full text-center">
+                                  <img 
+                                    src={floorPlanImage} 
+                                    alt="Planta Baixa" 
+                                    className="max-h-[75vh] w-auto block select-none mx-auto" 
+                                    draggable={false}
+                                  />
                                   
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  const x = e.clientX - rect.left;
-                                  const y = e.clientY - rect.top;
-                                  
-                                  if (isCalibrating) {
+                                  {/* Interaction Overlay */}
+                                  <div 
+                                    className={cn(
+                                      "absolute inset-0 z-20 touch-none",
+                                      (isCalibrating || isMeasuringArea) ? "cursor-crosshair active:scale-[0.99]" : "pointer-events-none"
+                                    )}
+                                    onClick={(e) => {
+                                      if (!isCalibrating && !isMeasuringArea) return;
+                                      
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      const x = e.clientX - rect.left;
+                                      const y = e.clientY - rect.top;
+                                      
+                                      if (isCalibrating) {
                                     if (activePoints.length >= 2) return;
                                     const newPoints = [...activePoints, { x, y }];
                                     setActivePoints(newPoints);
@@ -1844,9 +1846,11 @@ export default function App() {
                                   </>
                                 )}
                               </svg>
+                              </div>
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
+                      </div>
 
                         {/* Results Hub */}
                         {isMeasuringArea && activePoints.length > 2 && calibrationRatio && (
