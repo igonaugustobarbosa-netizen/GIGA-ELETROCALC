@@ -3,6 +3,5 @@
   "description": "Calculadora profissional de materiais e cabos elétricos para instalações residenciais baseada na NBR 5410.",
   "requestFramePermissions": [
     "camera"
-  ],
-  "majorCapabilities": []
+  ]
 }

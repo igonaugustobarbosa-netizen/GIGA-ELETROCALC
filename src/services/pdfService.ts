@@ -625,7 +625,8 @@ export function generateFloorPlanPDF(
     doc.setDrawColor(200, 200, 200);
     doc.rect(10, 30, pageWidth - 20, pageHeight - 45);
 
-    doc.addImage(floorPlanImage, 'JPEG', 12, 32, pageWidth - 24, pageHeight - 49, undefined, 'FAST');
+    // Use auto-detection for format if possible, or just don't force JPEG
+    doc.addImage(floorPlanImage, 12, 32, pageWidth - 24, pageHeight - 49, undefined, 'FAST');
   } catch (e) {
     console.error('Error adding floor plan to PDF:', e);
     doc.setTextColor(200, 0, 0);

@@ -29,6 +29,7 @@ import {
   Settings,
   FileDown,
   Upload,
+  Camera,
   Loader2,
   User,
   RotateCw,
@@ -78,11 +79,18 @@ export default function App() {
         serviceEntranceLength: 10,
         serviceEntranceGauge: 16,
         calculateOnlyPole: false,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        updatedAt: new Date().toISOString()
       };
       return [firstProject];
     }
-    return JSON.parse(saved);
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error("Erro ao carregar projetos:", e);
+      return [];
+    }
   });
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -648,25 +656,32 @@ export default function App() {
     const seLengthToSave = updatedSeLength !== undefined ? updatedSeLength : serviceEntranceLength;
     const seGaugeToSave = updatedSeGauge !== undefined ? updatedSeGauge : serviceEntranceGauge;
 
-    if (currentProjectId) {
-      setProjects(prev => {
-        const updated = prev.map(p => 
-          p.id === currentProjectId ? { 
-            ...p, 
-            rooms: roomsToSave, 
-            customMaterials: customToSave, 
-            selectedPoleModelId: poleToSave, 
-            calculateOnlyPole: onlyPoleToSave, 
-            floorPlanImage: floorPlanToSave,
-            calibrationRatio: calibrationToSave,
-            technician: technicianToSave,
-            serviceEntranceLength: seLengthToSave,
-            serviceEntranceGauge: seGaugeToSave
-          } : p
-        );
-        localStorage.setItem('eletrocalc_projects', JSON.stringify(updated));
-        return updated;
-      });
+    try {
+      if (currentProjectId) {
+        setProjects(prev => {
+          const updated = prev.map(p => 
+            p.id === currentProjectId ? { 
+              ...p, 
+              rooms: roomsToSave, 
+              customMaterials: customToSave, 
+              selectedPoleModelId: poleToSave, 
+              calculateOnlyPole: onlyPoleToSave, 
+              floorPlanImage: floorPlanToSave,
+              calibrationRatio: calibrationToSave,
+              technician: technicianToSave,
+              serviceEntranceLength: seLengthToSave,
+              serviceEntranceGauge: seGaugeToSave
+            } : p
+          );
+          localStorage.setItem('eletrocalc_projects', JSON.stringify(updated));
+          return updated;
+        });
+      }
+    } catch (e) {
+      console.error("Erro ao salvar projeto:", e);
+      if (e instanceof Error && e.name === 'QuotaExceededError') {
+        alert("O armazenamento local está cheio. Tente remover arquivos de outros projetos ou usar imagens menores.");
+      }
     }
   };
 
@@ -975,65 +990,81 @@ export default function App() {
   const [isUploadingPlane, setIsUploadingPlane] = useState(false);
 
   const handleFloorPlanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const input = e.target;
+    const file = input?.files?.[0];
     if (!file || !currentProjectId) return;
 
     setIsUploadingPlane(true);
     try {
-      const isPDF = file.type === 'application/pdf';
+      const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
       
-      const reader = new FileReader();
-      reader.onload = async () => {
-        let base64 = reader.result as string;
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
+        reader.readAsDataURL(file);
+      });
 
-        // If it's an image (not PDF), let's compress it to avoid localStorage limits
-        if (!isPDF && file.type.startsWith('image/')) {
-          const img = new Image();
-          img.src = base64;
-          await new Promise((resolve) => { img.onload = resolve; });
+      let finalBase64 = base64;
 
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
+      // Force PDF mime type if extension matches but browser missed it
+      if (file.name.toLowerCase().endsWith('.pdf') && !finalBase64.includes('application/pdf')) {
+        finalBase64 = finalBase64.replace(/^data:[^;]+;/, 'data:application/pdf;');
+      }
 
-          // Max resolution 1600px for speed and storage
-          const MAX_SIZE = 1600;
-          if (width > height) {
-            if (width > MAX_SIZE) {
-              height *= MAX_SIZE / width;
-              width = MAX_SIZE;
-            }
-          } else {
-            if (height > MAX_SIZE) {
-              width *= MAX_SIZE / height;
-              height = MAX_SIZE;
-            }
+      // If it's an image (not PDF), let's compress it to avoid localStorage limits
+      if (!isPDF && (file.type.startsWith('image/') || finalBase64.startsWith('data:image/'))) {
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = () => reject(new Error('Falha ao carregar imagem para compressão'));
+          image.src = finalBase64;
+        });
+
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Max resolution 1600px for speed and storage
+        const MAX_SIZE = 1600;
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
           }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-          
-          // Compress to JPEG with 0.6 quality (good balance)
-          base64 = canvas.toDataURL('image/jpeg', 0.6);
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
         }
 
-        setFloorPlanImage(base64);
-        saveProject(
-          undefined, 
-          undefined, 
-          undefined, 
-          undefined, 
-          base64
-        );
-        setIsUploadingPlane(false);
-      };
-      reader.readAsDataURL(file);
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // Compress to JPEG with 0.6 quality (good balance)
+        finalBase64 = canvas.toDataURL('image/jpeg', 0.6);
+      }
+
+      setFloorPlanImage(finalBase64);
+      saveProject(
+        undefined, 
+        undefined, 
+        undefined, 
+        undefined, 
+        finalBase64
+      );
     } catch (error) {
-      console.error(error);
+      console.error("Erro no upload da planta:", error);
       alert("Erro ao processar arquivo. Tente uma foto menor ou outro formato.");
+    } finally {
       setIsUploadingPlane(false);
+      // Limpar o input para permitir selecionar o mesmo arquivo novamente se necessário
+      if (input) {
+        input.value = '';
+      }
     }
   };
 
@@ -1355,20 +1386,54 @@ export default function App() {
                   </h3>
                   <div className="flex items-center gap-2">
                     {!floorPlanImage ? (
-                      <label className="cursor-pointer flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-                        {isUploadingPlane ? (
-                          <><Loader2 className="animate-spin" size={16} /> Processando...</>
-                        ) : (
-                          <><Upload size={16} /> Carregar Planta/Foto</>
-                        )}
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          accept="image/*,application/pdf"
-                          onChange={handleFloorPlanUpload} 
-                          disabled={isUploadingPlane}
-                        />
-                      </label>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label className="cursor-pointer flex items-center gap-3 bg-white hover:bg-slate-50 text-slate-900 px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2 border-slate-200 hover:border-blue-500 shadow-sm hover:shadow-md group">
+                          {isUploadingPlane ? (
+                            <><Loader2 className="animate-spin text-blue-600" size={18} /> Processando...</>
+                          ) : (
+                            <>
+                              <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                <Upload size={16} />
+                              </div>
+                              <div className="flex flex-col items-start leading-tight">
+                                <span>Carregar Arquivo</span>
+                                <span className="text-[8px] text-slate-400 normal-case font-bold">PDF ou Imagem</span>
+                              </div>
+                            </>
+                          )}
+                          <input 
+                            type="file" 
+                            className="hidden" 
+                            accept="image/*,application/pdf"
+                            onChange={handleFloorPlanUpload} 
+                            disabled={isUploadingPlane}
+                          />
+                        </label>
+
+                        <label className="cursor-pointer flex items-center gap-3 bg-white hover:bg-slate-50 text-slate-900 px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2 border-slate-200 hover:border-emerald-500 shadow-sm hover:shadow-md group">
+                          {isUploadingPlane ? (
+                            <><Loader2 className="animate-spin text-emerald-600" size={18} /> Processando...</>
+                          ) : (
+                            <>
+                              <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                <Camera size={16} />
+                              </div>
+                              <div className="flex flex-col items-start leading-tight">
+                                <span>Tirar Foto</span>
+                                <span className="text-[8px] text-slate-400 normal-case font-bold">Usar Câmera</span>
+                              </div>
+                            </>
+                          )}
+                          <input 
+                            type="file" 
+                            className="hidden" 
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleFloorPlanUpload} 
+                            disabled={isUploadingPlane}
+                          />
+                        </label>
+                      </div>
                     ) : (
                       <button 
                         onClick={() => {
@@ -1498,7 +1563,7 @@ export default function App() {
                               >
                                 <RotateCw size={16} />
                               </button>
-                              {!floorPlanImage.startsWith('data:application/pdf') && (
+                              {floorPlanImage && !floorPlanImage.includes('pdf') && (
                                 <button 
                                   onClick={() => {
                                     const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
@@ -1544,21 +1609,32 @@ export default function App() {
                         </AnimatePresence>
 
                         <div className="relative group overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                          {floorPlanImage.startsWith('data:application/pdf') ? (
-                            <div className="flex flex-col items-center justify-center p-12 bg-slate-50 min-h-[400px]">
-                              <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center text-slate-400 mb-6">
-                                <FileDown size={40} />
+                          {floorPlanImage && (floorPlanImage.includes('pdf') || floorPlanImage.includes('application/pdf')) ? (
+                            <div className="flex flex-col items-center justify-center p-4 bg-slate-50 w-full">
+                              <div className="w-full bg-white rounded-xl shadow-inner overflow-hidden border border-slate-200" style={{ height: '75vh', minHeight: '600px' }}>
+                                <iframe 
+                                  src={floorPlanImage}
+                                  className="w-full h-full border-none"
+                                  title="Planta Baixa PDF"
+                                />
                               </div>
-                              <h5 className="text-xl font-black text-slate-900 uppercase">PDF Carregado</h5>
-                              <p className="text-slate-500 text-sm mt-2 mb-8 text-center max-w-md">Para realizar medições diretas na planta, utilize uma imagem (JPG/PNG). PDFs podem ser visualizados mas não suportam marcação de pontos.</p>
-                              <a 
-                                href={floorPlanImage} 
-                                target="_blank" 
-                                rel="noreferrer" 
-                                className="bg-slate-900 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl"
-                              >
-                                Abrir PDF em Nova Aba
-                              </a>
+                              <div className="mt-6 flex flex-col items-center text-center">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400">
+                                    <FileText size={18} />
+                                  </div>
+                                  <h5 className="text-sm font-black text-slate-900 uppercase">PDF Carregado</h5>
+                                </div>
+                                <p className="text-slate-500 text-[10px] mb-4 max-w-md font-bold uppercase tracking-widest">Visualização habilitada. PDFs não suportam marcação de pontos automática.</p>
+                                <a 
+                                  href={floorPlanImage} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="bg-slate-900 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:scale-105 transition-transform"
+                                >
+                                  Abrir em Tela Cheia
+                                </a>
+                              </div>
                             </div>
                           ) : (
                             <div className="relative inline-block mx-auto min-w-min">
