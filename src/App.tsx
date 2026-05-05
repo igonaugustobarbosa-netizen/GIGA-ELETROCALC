@@ -45,8 +45,12 @@ import {
   ZoomOut,
   MessageSquare,
   GitCommit,
-  GitMerge
+  GitMerge,
+  Edit
 } from 'lucide-react';
+import { Area } from "react-easy-crop";
+import { ImageCropper } from "./components/ImageCropper";
+import { getCroppedImg } from "./lib/imageUtils";
 import { motion, AnimatePresence } from 'motion/react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RecharsTooltip } from 'recharts';
 import { cn } from './lib/utils';
@@ -991,6 +995,7 @@ export default function App() {
   };
 
   const [isUploadingPlane, setIsUploadingPlane] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
 
   const handleFloorPlanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target;
@@ -1015,59 +1020,80 @@ export default function App() {
         finalBase64 = finalBase64.replace(/^data:[^;]+;/, 'data:application/pdf;');
       }
 
-      // If it's an image (not PDF), let's compress it to avoid localStorage limits
-      if (!isPDF && (file.type.startsWith('image/') || finalBase64.startsWith('data:image/'))) {
-        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const image = new Image();
-          image.onload = () => resolve(image);
-          image.onerror = () => reject(new Error('Falha ao carregar imagem para compressão'));
-          image.src = finalBase64;
-        });
+      if (isPDF) {
+        setFloorPlanImage(finalBase64);
+        saveProject(undefined, undefined, undefined, undefined, finalBase64);
+        setIsUploadingPlane(false);
+      } else {
+        // Para imagens, abrir o editor de corte
+        setImageToCrop(finalBase64);
+        setIsUploadingPlane(false);
+      }
+    } catch (error) {
+      console.error("Erro no upload da planta:", error);
+      alert("Erro ao processar arquivo. Tente uma foto menor ou outro formato.");
+      setIsUploadingPlane(false);
+    } finally {
+      if (input) {
+        input.value = '';
+      }
+    }
+  };
 
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
+  const handleCropDone = async (croppedAreaPixels: Area, rotation: number) => {
+    if (!imageToCrop) return;
+    
+    setIsUploadingPlane(true);
+    try {
+      const croppedImage = await getCroppedImg(imageToCrop, croppedAreaPixels, rotation);
+      
+      // Compress it to avoid localStorage limits
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('Falha ao carregar imagem para compressão'));
+        image.src = croppedImage;
+      });
 
-        // Max resolution 1600px for speed and storage
-        const MAX_SIZE = 1600;
-        if (width > height) {
-          if (width > MAX_SIZE) {
-            height *= MAX_SIZE / width;
-            width = MAX_SIZE;
-          }
-        } else {
-          if (height > MAX_SIZE) {
-            width *= MAX_SIZE / height;
-            height = MAX_SIZE;
-          }
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      // Max resolution 1600px for speed and storage
+      const MAX_SIZE = 1600;
+      if (width > height) {
+        if (width > MAX_SIZE) {
+          height *= MAX_SIZE / width;
+          width = MAX_SIZE;
         }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-        
-        // Compress to JPEG with 0.6 quality (good balance)
-        finalBase64 = canvas.toDataURL('image/jpeg', 0.6);
+      } else {
+        if (height > MAX_SIZE) {
+          width *= MAX_SIZE / height;
+          height = MAX_SIZE;
+        }
       }
 
-      setFloorPlanImage(finalBase64);
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0, width, height);
+      
+      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+
+      setFloorPlanImage(compressedBase64);
       saveProject(
         undefined, 
         undefined, 
         undefined, 
         undefined, 
-        finalBase64
+        compressedBase64
       );
+      setImageToCrop(null);
     } catch (error) {
-      console.error("Erro no upload da planta:", error);
-      alert("Erro ao processar arquivo. Tente uma foto menor ou outro formato.");
+      console.error("Erro ao cortar imagem:", error);
+      alert("Erro ao processar o corte da imagem.");
     } finally {
       setIsUploadingPlane(false);
-      // Limpar o input para permitir selecionar o mesmo arquivo novamente se necessário
-      if (input) {
-        input.value = '';
-      }
     }
   };
 
@@ -1468,17 +1494,27 @@ export default function App() {
                         </label>
                       </>
                     ) : (
-                      <button 
-                        onClick={() => {
-                          if (confirm("Deseja remover esta planta do projeto?")) {
-                            setFloorPlanImage(undefined);
-                            saveProject(undefined, undefined, undefined, undefined, "");
-                          }
-                        }}
-                        className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                      >
-                        <Trash2 size={16} /> Remover Planta
-                      </button>
+                      <div className="flex flex-wrap items-center gap-3">
+                        {floorPlanImage && !floorPlanImage.includes('pdf') && (
+                          <button 
+                            onClick={() => setImageToCrop(floorPlanImage!)}
+                            className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-600 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                          >
+                            <Edit size={16} /> Editar Planta
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => {
+                            if (confirm("Deseja remover esta planta do projeto?")) {
+                              setFloorPlanImage(undefined);
+                              saveProject(undefined, undefined, undefined, undefined, "");
+                            }
+                          }}
+                          className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                        >
+                          <Trash2 size={16} /> Remover Planta
+                        </button>
+                      </div>
                     )}
                     <button 
                       onClick={() => setIsAddingRoom(true)}
@@ -3218,6 +3254,14 @@ export default function App() {
 
 
 
+      {/* Image Cropper Modal */}
+      {imageToCrop && (
+        <ImageCropper
+          image={imageToCrop}
+          onCropDone={handleCropDone}
+          onCancel={() => setImageToCrop(null)}
+        />
+      )}
     </div>
   );
 }
