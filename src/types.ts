@@ -70,6 +70,7 @@ export interface Project {
   calibrationRatio?: number; // pixels per meter
   technician?: TechnicianInfo;
   createdAt: number;
+  updatedAt?: string;
 }
 
 export interface ProjectMaterial {

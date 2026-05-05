@@ -30,6 +30,8 @@ import {
   FileDown,
   Upload,
   Camera,
+  Menu,
+  ChevronLeft,
   Loader2,
   User,
   RotateCw,
@@ -137,6 +139,7 @@ export default function App() {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('eletrocalc_technicians') : null;
     return saved ? JSON.parse(saved) : [];
   });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'rooms' | 'materials' | 'catalog' | 'technicians'>('rooms');
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [techToDelete, setTechToDelete] = useState<TechnicianInfo | null>(null);
@@ -1071,16 +1074,27 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#F8FAFC]">
       {/* Sidebar: Projects & Navigation */}
-      <aside className="w-64 bg-slate-900 flex flex-col shrink-0 overflow-hidden relative border-r border-slate-800">
+      <aside className={cn(
+        "fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 flex flex-col shrink-0 overflow-hidden transition-transform duration-300 ease-in-out border-r border-slate-800 lg:relative lg:translate-x-0",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
         <div className="p-6">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-8 h-8 bg-yellow-400 rounded-lg flex items-center justify-center text-slate-900 font-black shadow-lg shadow-yellow-400/20">
-              ⚡
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-yellow-400 rounded-lg flex items-center justify-center text-slate-900 font-black shadow-lg shadow-yellow-400/20">
+                ⚡
+              </div>
+              <h1 className="text-sm font-black text-white uppercase tracking-tighter leading-none">
+                Giga EletroCalc<br/>
+                <span className="text-yellow-400 text-[10px] tracking-widest font-bold">PROFESSIONAL</span>
+              </h1>
             </div>
-            <h1 className="text-sm font-black text-white uppercase tracking-tighter leading-none">
-              Giga EletroCalc<br/>
-              <span className="text-yellow-400 text-[10px] tracking-widest font-bold">PROFESSIONAL</span>
-            </h1>
+            <button 
+              onClick={() => setIsSidebarOpen(false)}
+              className="lg:hidden p-2 text-slate-400 hover:text-white"
+            >
+              <ChevronLeft size={20} />
+            </button>
           </div>
 
           <nav className="space-y-1 mb-8">
@@ -1218,15 +1232,31 @@ export default function App() {
         </div>
       </aside>
 
+      {/* Overlay for mobile sidebar */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Main Container */}
       <div className="flex-1 flex flex-col min-w-0 bg-slate-50 overflow-hidden">
         {/* Header fixed at top */}
-        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 z-10 shadow-sm">
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-0.5">Projeto Ativo</span>
-            <h2 className="text-xl font-black text-slate-900 tracking-tighter">
-              {currentProjectId ? (projects.find(p => p.id === currentProjectId)?.name || 'Carregando...') : 'Nenhum Projeto Ativo'}
-            </h2>
+        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 shrink-0 z-10 shadow-sm">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+            >
+              <Menu size={24} />
+            </button>
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-0.5">Projeto Ativo</span>
+              <h2 className="text-sm lg:text-xl font-black text-slate-900 tracking-tighter truncate max-w-[150px] lg:max-w-none">
+                {currentProjectId ? (projects.find(p => p.id === currentProjectId)?.name || 'Carregando...') : 'Nenhum Projeto Ativo'}
+              </h2>
+            </div>
           </div>
 
           <div className="flex items-center gap-6">
@@ -1377,27 +1407,30 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 mt-8">
-                  <h3 className="text-lg font-black text-slate-900 tracking-tighter flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-600/20">
-                      <Layout size={20} />
+                <div className="flex flex-col lg:flex-row items-center justify-between gap-6 mb-8 mt-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                  <div className="flex items-center gap-4 w-full lg:w-auto">
+                    <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-600/20 shrink-0">
+                      <Layout size={24} />
                     </div>
-                    Dimensionamento Elétrico por Cômodo
-                  </h3>
-                  <div className="flex items-center gap-2">
+                    <div className="flex flex-col">
+                      <h3 className="text-lg font-black text-slate-900 tracking-tighter leading-tight">Dimensionamento</h3>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Planta Baixa e Cômodos</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center lg:justify-end gap-3 w-full lg:w-auto">
                     {!floorPlanImage ? (
-                      <div className="flex flex-wrap items-center gap-3">
-                        <label className="cursor-pointer flex items-center gap-3 bg-white hover:bg-slate-50 text-slate-900 px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2 border-slate-200 hover:border-blue-500 shadow-sm hover:shadow-md group">
+                      <>
+                        <label className="cursor-pointer flex items-center gap-3 bg-slate-50 hover:bg-slate-100 text-slate-900 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2 border-slate-200 hover:border-blue-500 shadow-sm active:scale-95 group shrink-0">
                           {isUploadingPlane ? (
-                            <><Loader2 className="animate-spin text-blue-600" size={18} /> Processando...</>
+                            <><Loader2 className="animate-spin text-blue-600" size={18} /> ...</>
                           ) : (
                             <>
-                              <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                                 <Upload size={16} />
                               </div>
                               <div className="flex flex-col items-start leading-tight">
-                                <span>Carregar Arquivo</span>
-                                <span className="text-[8px] text-slate-400 normal-case font-bold">PDF ou Imagem</span>
+                                <span>Arquivo</span>
+                                <span className="text-[8px] text-slate-400 normal-case font-bold italic">PDF/IMG</span>
                               </div>
                             </>
                           )}
@@ -1410,17 +1443,17 @@ export default function App() {
                           />
                         </label>
 
-                        <label className="cursor-pointer flex items-center gap-3 bg-white hover:bg-slate-50 text-slate-900 px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2 border-slate-200 hover:border-emerald-500 shadow-sm hover:shadow-md group">
+                        <label className="cursor-pointer flex items-center gap-3 bg-slate-50 hover:bg-slate-100 text-slate-900 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2 border-slate-200 hover:border-emerald-500 shadow-sm active:scale-95 group shrink-0">
                           {isUploadingPlane ? (
-                            <><Loader2 className="animate-spin text-emerald-600" size={18} /> Processando...</>
+                            <><Loader2 className="animate-spin text-emerald-600" size={18} /> ...</>
                           ) : (
                             <>
-                              <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                              <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                                 <Camera size={16} />
                               </div>
                               <div className="flex flex-col items-start leading-tight">
-                                <span>Tirar Foto</span>
-                                <span className="text-[8px] text-slate-400 normal-case font-bold">Usar Câmera</span>
+                                <span>Câmera</span>
+                                <span className="text-[8px] text-slate-400 normal-case font-bold italic">Tirar Foto</span>
                               </div>
                             </>
                           )}
@@ -1433,7 +1466,7 @@ export default function App() {
                             disabled={isUploadingPlane}
                           />
                         </label>
-                      </div>
+                      </>
                     ) : (
                       <button 
                         onClick={() => {
