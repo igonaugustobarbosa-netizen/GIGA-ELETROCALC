@@ -18,7 +18,8 @@ export function generateElectricalPDF(
   totalBudget: number,
   poleModelName?: string,
   floorPlanImage?: string,
-  technician?: { name: string; license: string; phone: string }
+  technician?: { name: string; license: string; phone: string },
+  isSimple: boolean = false
 ) {
   const doc = new jsPDF();
   const date = new Date().toLocaleDateString('pt-BR');
@@ -33,7 +34,7 @@ export function generateElectricalPDF(
   
   doc.setFontSize(10);
   doc.text(`Projeto: ${projectName}`, 14, 26);
-  doc.text('Relatório Técnico de Orçamento Elétrico (NBR 5410)', 14, 32);
+  doc.text(isSimple ? 'Relatório Técnico Quantitativo de Materiais (NBR 5410)' : 'Relatório Técnico de Orçamento Elétrico (NBR 5410)', 14, 32);
 
   if (technician && technician.name) {
     const techText = `Responsável: ${technician.name}${technician.license ? ` (${technician.license})` : ''}${technician.phone ? ` - ${technician.phone}` : ''}`;
@@ -56,8 +57,11 @@ export function generateElectricalPDF(
     ['Área Total da Residência', `${totalArea.toFixed(2)} m²`],
     ['Potência Total Instalada', `${totalPower} VA`],
     ['Potência Total Estimada (kW)', `${(totalPower / 1000).toFixed(2)} kW`],
-    ['Custo Total Estimado (Materiais)', `R$ ${totalBudget.toFixed(2)}`],
   ];
+
+  if (!isSimple) {
+    summaryBody.push(['Custo Total Estimado (Materiais)', `R$ ${totalBudget.toFixed(2)}`]);
+  }
 
   if (poleModelName) {
     summaryBody.push(['Padrão de Entrada', poleModelName]);
@@ -91,10 +95,17 @@ export function generateElectricalPDF(
 
   // Materials Table
   const lastY2 = (doc as any).lastAutoTable.finalY;
-  doc.text('Lista de Materiais e Preços Estimados', 14, lastY2 + 15);
+  doc.text(isSimple ? 'Lista de Materiais Quantitativa' : 'Lista de Materiais e Preços Estimados', 14, lastY2 + 15);
   
   const generatedRows = materials.map(m => {
     const unitPrice = catalog[m.id] || 0;
+    if (isSimple) {
+      return [
+        m.name,
+        m.quantity.toString(),
+        m.unit
+      ];
+    }
     return [
       m.name,
       m.quantity.toString(),
@@ -104,17 +115,26 @@ export function generateElectricalPDF(
     ];
   });
 
-  const customRows = customMaterials.map(m => [
-    m.name,
-    m.quantity.toString(),
-    m.unit,
-    `R$ ${m.unitPrice.toFixed(2)}`,
-    `R$ ${(m.quantity * m.unitPrice).toFixed(2)}`
-  ]);
+  const customRows = customMaterials.map(m => {
+    if (isSimple) {
+      return [
+        m.name,
+        m.quantity.toString(),
+        m.unit
+      ];
+    }
+    return [
+      m.name,
+      m.quantity.toString(),
+      m.unit,
+      `R$ ${m.unitPrice.toFixed(2)}`,
+      `R$ ${(m.quantity * m.unitPrice).toFixed(2)}`
+    ];
+  });
 
   autoTable(doc, {
     startY: lastY2 + 20,
-    head: [['Material', 'Quant.', 'Unid.', 'V. Unit.', 'Subtotal']],
+    head: [isSimple ? ['Material', 'Quant.', 'Unid.'] : ['Material', 'Quant.', 'Unid.', 'V. Unit.', 'Subtotal']],
     body: [...generatedRows, ...customRows],
     theme: 'striped',
     headStyles: { fillColor: [15, 23, 42] }
@@ -156,7 +176,8 @@ export function generateElectricalPDF(
     doc.text(footerText, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
   }
 
-  doc.save(`Orcamento_${projectName.replace(/\s+/g, '_')}_${date.replace(/\//g, '-')}.pdf`);
+  const filename = isSimple ? 'Quantitativo' : 'Orcamento';
+  doc.save(`${filename}_${projectName.replace(/\s+/g, '_')}_${date.replace(/\//g, '-')}.pdf`);
 }
 
 async function svgToDataURL(svgString: string): Promise<string> {
@@ -432,7 +453,8 @@ export async function generateDetailedElectricalPDF(
   customMaterials: ProjectMaterial[],
   catalog: Record<string, number>,
   technician?: { name: string; license: string; phone: string },
-  floorPlanImage?: string
+  floorPlanImage?: string,
+  isSimple: boolean = false
 ) {
   const doc = new jsPDF();
   const date = new Date().toLocaleDateString('pt-BR');
@@ -447,7 +469,7 @@ export async function generateDetailedElectricalPDF(
   
   doc.setFontSize(10);
   doc.text(`Projeto: ${projectName}`, 14, 26);
-  doc.text('Orçamento Detalhado por Grupos/Cômodos', 14, 32);
+  doc.text(isSimple ? 'Relatório Técnico Quantitativo (NBR 5410)' : 'Orçamento Detalhado por Grupos/Cômodos', 14, 32);
   doc.text(`Área Total da Residência: ${detailedList.totalArea.toFixed(2)} m²`, 14, 38);
 
   if (technician && technician.name) {
@@ -474,6 +496,15 @@ export async function generateDetailedElectricalPDF(
       const unitPrice = catalog[m.id] || 0;
       const subtotal = m.quantity * unitPrice;
       totalProjectSum += subtotal;
+      
+      if (isSimple) {
+        return [
+          m.name,
+          m.quantity.toString(),
+          m.unit
+        ];
+      }
+      
       return [
         m.name,
         m.quantity.toString(),
@@ -485,7 +516,7 @@ export async function generateDetailedElectricalPDF(
 
     autoTable(doc, {
       startY: startY + 5,
-      head: [['Material', 'Quant.', 'Unid.', 'V. Unit.', 'Subtotal']],
+      head: [isSimple ? ['Material', 'Quant.', 'Unid.'] : ['Material', 'Quant.', 'Unid.', 'V. Unit.', 'Subtotal']],
       body: body,
       theme: 'grid',
       headStyles: { fillColor: [51, 65, 85] },
@@ -520,6 +551,15 @@ export async function generateDetailedElectricalPDF(
     const body = customMaterials.map(m => {
       const subtotal = m.quantity * m.unitPrice;
       totalProjectSum += subtotal;
+      
+      if (isSimple) {
+        return [
+          m.name,
+          m.quantity.toString(),
+          m.unit
+        ];
+      }
+      
       return [
         m.name,
         m.quantity.toString(),
@@ -536,7 +576,7 @@ export async function generateDetailedElectricalPDF(
 
     autoTable(doc, {
       startY: currentY + 5,
-      head: [['Material', 'Quant.', 'Unid.', 'V. Unit.', 'Subtotal']],
+      head: [isSimple ? ['Material', 'Quant.', 'Unid.'] : ['Material', 'Quant.', 'Unid.', 'V. Unit.', 'Subtotal']],
       body: body,
       theme: 'grid',
       headStyles: { fillColor: [51, 65, 85] },
@@ -547,15 +587,22 @@ export async function generateDetailedElectricalPDF(
 
   // Total Summary
   if (currentY > 260) { doc.addPage(); currentY = 20; }
-  doc.setFillColor(248, 250, 252);
-  doc.rect(14, currentY, 182, 15, 'F');
-  doc.setDrawColor(15, 23, 42);
-  doc.rect(14, currentY, 182, 15);
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('VALOR TOTAL ESTIMADO DO ORÇAMENTO:', 20, currentY + 10);
-  doc.text(`R$ ${totalProjectSum.toFixed(2)}`, 190, currentY + 10, { align: 'right' });
+  
+  if (!isSimple) {
+    doc.setFillColor(248, 250, 252);
+    doc.rect(14, currentY, 182, 15, 'F');
+    doc.setDrawColor(15, 23, 42);
+    doc.rect(14, currentY, 182, 15);
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('VALOR TOTAL ESTIMADO DO ORÇAMENTO:', 20, currentY + 10);
+    doc.text(`R$ ${totalProjectSum.toFixed(2)}`, 190, currentY + 10, { align: 'right' });
+  } else {
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(12);
+    doc.text('RELATÓRIO TÉCNICO QUANTITATIVO - PREÇOS NÃO INCLUSOS', 14, currentY + 10);
+  }
 
   // Add Floor Plan
   if (floorPlanImage && !floorPlanImage.startsWith('data:application/pdf')) {
@@ -581,7 +628,8 @@ export async function generateDetailedElectricalPDF(
     doc.text(footerText, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
   }
 
-  doc.save(`Orcamento_Detalhado_${projectName.replace(/\s+/g, '_')}_${date.replace(/\//g, '-')}.pdf`);
+  const filename = isSimple ? 'Lista_Quantitativa' : 'Orcamento_Detalhado';
+  doc.save(`${filename}_${projectName.replace(/\s+/g, '_')}_${date.replace(/\//g, '-')}.pdf`);
 }
 
 export function generateFloorPlanPDF(

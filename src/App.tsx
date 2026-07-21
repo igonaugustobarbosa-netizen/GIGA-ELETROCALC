@@ -43,10 +43,12 @@ import {
   Undo2,
   ZoomIn,
   ZoomOut,
+  Search,
   MessageSquare,
   GitCommit,
   GitMerge,
-  Edit
+  Edit,
+  ListChecks
 } from 'lucide-react';
 import { Area } from "react-easy-crop";
 import { ImageCropper } from "./components/ImageCropper";
@@ -145,6 +147,8 @@ export default function App() {
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'rooms' | 'materials' | 'catalog' | 'technicians'>('rooms');
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [showBudgetSelectionModal, setShowBudgetSelectionModal] = useState<{ type: 'simple' | 'detailed', open: boolean }>({ type: 'simple', open: false });
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [techToDelete, setTechToDelete] = useState<TechnicianInfo | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -1325,11 +1329,7 @@ export default function App() {
                   </button>
 
                   <button 
-                    onClick={async () => {
-                      const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
-                      const detailedList = generateDetailedMaterialList(rooms, selectedPoleModel);
-                      await generateDetailedElectricalPDF(name, detailedList, customMaterials, catalog, technician, floorPlanImage);
-                    }}
+                    onClick={() => setShowBudgetSelectionModal({ type: 'detailed', open: true })}
                     className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-slate-900/20 active:scale-95 flex items-center gap-2 border border-white/10"
                     title="Gera orçamento detalhado agrupado por cômodos"
                   >
@@ -1719,10 +1719,11 @@ export default function App() {
                                   {/* Interaction Overlay */}
                                   <div 
                                     className={cn(
-                                      "absolute inset-0 z-20 touch-none",
-                                      (isCalibrating || isMeasuringArea) ? "cursor-crosshair active:scale-[0.99]" : "pointer-events-none"
+                                      "absolute inset-0 z-30 touch-none",
+                                      (isCalibrating || isMeasuringArea) ? "cursor-crosshair" : "pointer-events-none"
                                     )}
-                                    onClick={(e) => {
+                                    style={{ pointerEvents: (isCalibrating || isMeasuringArea) ? 'auto' : 'none' }}
+                                    onPointerDown={(e) => {
                                       if (!isCalibrating && !isMeasuringArea) return;
                                       
                                       const rect = e.currentTarget.getBoundingClientRect();
@@ -1730,18 +1731,18 @@ export default function App() {
                                       const y = e.clientY - rect.top;
                                       
                                       if (isCalibrating) {
-                                    if (activePoints.length >= 2) return;
-                                    const newPoints = [...activePoints, { x, y }];
-                                    setActivePoints(newPoints);
-                                    
-                                    if (newPoints.length === 2) {
-                                      setShowCalibrationInput(true);
-                                    }
-                                  } else if (isMeasuringArea) {
-                                    setActivePoints([...activePoints, { x, y }]);
-                                  }
-                                }}
-                              />
+                                        if (activePoints.length >= 2) return;
+                                        const newPoints = [...activePoints, { x, y }];
+                                        setActivePoints(newPoints);
+                                        
+                                        if (newPoints.length === 2) {
+                                          setShowCalibrationInput(true);
+                                        }
+                                      } else if (isMeasuringArea) {
+                                        setActivePoints([...activePoints, { x, y }]);
+                                      }
+                                    }}
+                                  />
 
                               {/* Calibration Input Modal (Small and focused) */}
                               <AnimatePresence>
@@ -2167,7 +2168,7 @@ export default function App() {
                     <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-sm">
                       <div className="flex items-center justify-between mb-8">
                         <h3 className="text-lg font-black text-slate-900 tracking-tighter">Lista Quantitativa (NBR 5410)</h3>
-                        <div className="bg-slate-100 text-slate-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
+                        <div className="bg-slate-100 text-slate-500 text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full">
                           Cálculo Dinâmico
                         </div>
                       </div>
@@ -2270,7 +2271,9 @@ export default function App() {
                       <div className="w-16 h-16 bg-yellow-400 rounded-3xl flex items-center justify-center text-slate-900 mb-8 shadow-lg shadow-yellow-400/20">
                         <Zap size={32} />
                       </div>
-                      <p className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.2em] mb-2 text-center">Total Orçado</p>
+                      <p className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.2em] mb-2 text-center">
+                        Total Orçado
+                      </p>
                       <h4 className="text-5xl font-black text-yellow-400 text-center mono-value leading-none mb-10">
                         R$ {totalBudget.toFixed(2)}
                       </h4>
@@ -2297,14 +2300,10 @@ export default function App() {
                       <div className="grid grid-cols-1 gap-4">
                         <button 
                           disabled={materialList.length === 0 && customMaterials.length === 0}
-                          onClick={() => {
-                            const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
-                            const poleModelName = poleModels.find(m => m.id === selectedPoleModelId)?.name;
-                            generateElectricalPDF(name, rooms, materialList, customMaterials, totalPower, catalog, totalBudget, poleModelName, floorPlanImage, technician);
-                          }}
-                          className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-slate-800 disabled:text-slate-600 text-slate-900 py-5 rounded-[2rem] font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 shadow-xl flex items-center justify-center gap-2"
+                          onClick={() => setShowBudgetSelectionModal({ type: 'simple', open: true })}
+                          className="w-full py-5 rounded-[2rem] font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 shadow-xl flex items-center justify-center gap-2 bg-yellow-400 text-slate-900 hover:bg-yellow-500"
                         >
-                          <FileDown size={18} /> Orçamento Simples
+                          <FileDown size={18} /> Exportar Projeto / PDF
                         </button>
 
                         <button 
@@ -2321,11 +2320,7 @@ export default function App() {
 
                         <button 
                           disabled={materialList.length === 0 && customMaterials.length === 0}
-                          onClick={async () => {
-                            const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
-                            const detailedList = generateDetailedMaterialList(rooms, selectedPoleModel);
-                            await generateDetailedElectricalPDF(name, detailedList, customMaterials, catalog, technician, floorPlanImage);
-                          }}
+                          onClick={() => setShowBudgetSelectionModal({ type: 'detailed', open: true })}
                           className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-800 disabled:text-slate-600 text-white py-5 rounded-[2rem] font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 shadow-xl flex items-center justify-center gap-2 border border-white/5"
                         >
                           <FileSpreadsheet size={18} /> Orçamento Detalhado
@@ -2352,6 +2347,18 @@ export default function App() {
                       <p className="text-sm text-slate-500">Valores unitários usados para o cálculo automático.</p>
                     </div>
                     <div className="flex gap-3">
+                      <div className="relative group">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors">
+                          <Search size={16} />
+                        </div>
+                        <input 
+                          type="text"
+                          placeholder="Buscar material..."
+                          value={catalogSearch}
+                          onChange={(e) => setCatalogSearch(e.target.value)}
+                          className="pl-11 pr-6 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none w-64 transition-all"
+                        />
+                      </div>
                       <button 
                         onClick={() => {
                           if (confirm('Deseja redefinir todos os preços para os padrões de fábrica?')) {
@@ -2376,9 +2383,12 @@ export default function App() {
 
                   <div className="space-y-12">
                     {categories.map(cat => {
-                      const items = Object.entries(catalog).filter(([key]) => 
-                        new RegExp(cat.pattern).test(key)
-                      );
+                      const items = Object.entries(catalog).filter(([key]) => {
+                        const isInCategory = new RegExp(cat.pattern).test(key);
+                        const name = CATALOG_NAMES[key] || (key.includes('custom') ? key : key.split('-').join(' ').toUpperCase());
+                        const matchesSearch = name.toLowerCase().includes(catalogSearch.toLowerCase());
+                        return isInCategory && matchesSearch;
+                      });
                       
                       if (items.length === 0) return null;
 
@@ -3257,6 +3267,92 @@ export default function App() {
 
 
 
+
+      {/* Budget Selection Modal */}
+      <AnimatePresence>
+        {showBudgetSelectionModal.open && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowBudgetSelectionModal({ ...showBudgetSelectionModal, open: false })}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8">
+                <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
+                  <FileText size={24} />
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Exportar Documento</h3>
+                <p className="text-slate-500 text-sm font-medium mb-8">
+                  Como você deseja gerar o arquivo PDF? Selecione se deseja incluir os valores monetários.
+                </p>
+
+                <div className="space-y-3">
+                  <button 
+                    onClick={async () => {
+                      const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
+                      if (showBudgetSelectionModal.type === 'simple') {
+                        const poleModelName = poleModels.find(m => m.id === selectedPoleModelId)?.name;
+                        generateElectricalPDF(name, rooms, materialList, customMaterials, totalPower, catalog, totalBudget, poleModelName, floorPlanImage, technician, false);
+                      } else {
+                        const detailedList = generateDetailedMaterialList(rooms, selectedPoleModel);
+                        await generateDetailedElectricalPDF(name, detailedList, customMaterials, catalog, technician, floorPlanImage, false);
+                      }
+                      setShowBudgetSelectionModal({ ...showBudgetSelectionModal, open: false });
+                    }}
+                    className="w-full flex items-center gap-4 p-4 rounded-3xl border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50 transition-all group text-left"
+                  >
+                    <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Zap size={18} />
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-900 text-sm">Orçamento Completo</p>
+                      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Inclui preços e totais</p>
+                    </div>
+                  </button>
+
+                  <button 
+                    onClick={async () => {
+                      const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
+                      if (showBudgetSelectionModal.type === 'simple') {
+                        const poleModelName = poleModels.find(m => m.id === selectedPoleModelId)?.name;
+                        generateElectricalPDF(name, rooms, materialList, customMaterials, totalPower, catalog, totalBudget, poleModelName, floorPlanImage, technician, true);
+                      } else {
+                        const detailedList = generateDetailedMaterialList(rooms, selectedPoleModel);
+                        await generateDetailedElectricalPDF(name, detailedList, customMaterials, catalog, technician, floorPlanImage, true);
+                      }
+                      setShowBudgetSelectionModal({ ...showBudgetSelectionModal, open: false });
+                    }}
+                    className="w-full flex items-center gap-4 p-4 rounded-3xl border-2 border-slate-100 hover:border-slate-900 hover:bg-slate-50 transition-all group text-left"
+                  >
+                    <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <ListChecks size={18} />
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-900 text-sm">Lista Quantitativa</p>
+                      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Apenas materiais e quantidades</p>
+                    </div>
+                  </button>
+                </div>
+
+                <button 
+                  onClick={() => setShowBudgetSelectionModal({ ...showBudgetSelectionModal, open: false })}
+                  className="w-full mt-6 py-4 text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] hover:text-slate-600 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Image Cropper Modal */}
       {imageToCrop && (
