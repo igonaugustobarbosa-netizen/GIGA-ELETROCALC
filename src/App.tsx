@@ -146,8 +146,9 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'rooms' | 'materials' | 'catalog' | 'technicians'>('rooms');
+  const [activeTab, setActiveTab] = useState<'rooms' | 'materials' | 'catalog' | 'technicians' | 'pole_models'>('rooms');
   const [catalogSearch, setCatalogSearch] = useState('');
+  const [editingPoleModelId, setEditingPoleModelId] = useState<string | null>(null);
   const [showBudgetSelectionModal, setShowBudgetSelectionModal] = useState<{ type: 'simple' | 'detailed', open: boolean }>({ type: 'simple', open: false });
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [techToDelete, setTechToDelete] = useState<TechnicianInfo | null>(null);
@@ -814,6 +815,50 @@ export default function App() {
     setCatalog(prev => ({ ...prev, [key]: price }));
   };
 
+  const updatePoleModelItem = (modelId: string, itemId: string, field: string, value: any) => {
+    setPoleModels(prev => prev.map(m => {
+      if (m.id === modelId) {
+        return {
+          ...m,
+          items: m.items.map(item => item.id === itemId ? { ...item, [field]: value } : item)
+        };
+      }
+      return m;
+    }));
+  };
+
+  const removePoleModelItem = (modelId: string, itemId: string) => {
+    setPoleModels(prev => prev.map(m => {
+      if (m.id === modelId) {
+        return {
+          ...m,
+          items: m.items.filter(item => item.id !== itemId)
+        };
+      }
+      return m;
+    }));
+  };
+
+  const addPoleModelItem = (modelId: string) => {
+    const newItem = {
+      id: `item-${Date.now()}`,
+      name: 'Novo Item',
+      quantity: 1,
+      unit: 'un',
+      category: 'other'
+    };
+    setPoleModels(prev => prev.map(m => {
+      if (m.id === modelId) {
+        return { ...m, items: [...m.items, newItem] };
+      }
+      return m;
+    }));
+  };
+
+  const updatePoleModelName = (modelId: string, newName: string) => {
+    setPoleModels(prev => prev.map(m => m.id === modelId ? { ...m, name: newName } : m));
+  };
+
   // NBR 5410 Calculation Helpers
   const calculateNBR = (type: string, area: number, perimeter: number) => {
     // 1. Lighting calculation
@@ -1249,6 +1294,17 @@ export default function App() {
             <User size={14} className={activeTab === 'technicians' ? "text-white" : "text-blue-400"} /> Técnicos
           </button>
           <button 
+            onClick={() => setActiveTab('pole_models')}
+            className={cn(
+              "w-full flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border",
+              activeTab === 'pole_models' 
+                ? "bg-amber-600 border-amber-500 text-white shadow-xl shadow-amber-600/20" 
+                : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+            )}
+          >
+            <Box size={14} className={activeTab === 'pole_models' ? "text-white" : "text-amber-400"} /> Padrões Copel
+          </button>
+          <button 
             onClick={() => setActiveTab('catalog')}
             className={cn(
               "w-full flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border",
@@ -1649,33 +1705,52 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="relative bg-slate-50/50 p-4 flex flex-col items-center justify-center min-h-[500px]">
-                        {/* Overlay Instructions */}
+                      <div className="flex flex-col flex-1 bg-slate-50/50">
+                        {/* Measurement Instructions Bar */}
                         <AnimatePresence>
                           {(isCalibrating || isMeasuringArea) && (
                             <motion.div 
-                              initial={{ opacity: 0, scale: 0.9 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.9 }}
-                              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 bg-slate-900/90 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl backdrop-blur-md flex items-center gap-3 border border-white/10 w-max max-w-[90vw]"
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="bg-slate-900 border-b border-white/10 overflow-hidden"
                             >
-                              {isCalibrating ? (
-                                <>
-                                  <Ruler size={14} className="text-amber-400" />
-                                  Clique em dois pontos com distância conhecida
-                                </>
-                              ) : (
-                                <>
-                                  <Square size={14} className="text-blue-400" />
-                                  Marque os cantos do cômodo. Toque no último ponto para conferir a área.
-                                </>
-                              )}
-                              <button onClick={() => { setIsCalibrating(false); setIsMeasuringArea(false); setActivePoints([]); }} className="ml-4 hover:text-red-400 transition-colors">
-                                <X size={14} />
-                              </button>
+                              <div className="px-8 py-4 flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-4">
+                                  {isCalibrating ? (
+                                    <>
+                                      <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center">
+                                        <Ruler size={16} className="text-amber-400" />
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <p className="text-[10px] font-black text-white uppercase tracking-widest">Calibração</p>
+                                        <p className="text-xs text-slate-400 font-bold">Clique em dois pontos com distância conhecida para calibrar a escala.</p>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                                        <Square size={16} className="text-blue-400" />
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <p className="text-[10px] font-black text-white uppercase tracking-widest">Medição de Área</p>
+                                        <p className="text-xs text-slate-400 font-bold">Marque os cantos para calcular a área e o perímetro. Toque no último ponto para conferir.</p>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                                <button 
+                                  onClick={() => { setIsCalibrating(false); setIsMeasuringArea(false); setActivePoints([]); }}
+                                  className="flex items-center gap-2 bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-slate-400 px-4 py-2 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest border border-white/5"
+                                >
+                                  <X size={14} /> Cancelar
+                                </button>
+                              </div>
                             </motion.div>
                           )}
                         </AnimatePresence>
+
+                        <div className="relative p-4 flex flex-col items-center justify-center flex-1 min-h-[500px]">
 
                         <div className="relative group overflow-hidden rounded-2xl border border-slate-200 bg-white">
                           {floorPlanImage && (floorPlanImage.includes('pdf') || floorPlanImage.includes('application/pdf')) ? (
@@ -1708,13 +1783,14 @@ export default function App() {
                           ) : (
                             <div className="flex flex-col items-center justify-center p-4 bg-slate-50 w-full overflow-hidden">
                               <div className="relative w-full overflow-auto bg-white rounded-xl border border-slate-200" style={{ maxHeight: '75vh' }}>
-                                <div className="relative inline-block min-w-full text-center">
-                                  <img 
-                                    src={floorPlanImage} 
-                                    alt="Planta Baixa" 
-                                    className="max-h-[75vh] w-auto block select-none mx-auto" 
-                                    draggable={false}
-                                  />
+                                <div className="flex justify-center min-w-full bg-slate-50/30">
+                                  <div className="relative inline-block">
+                                    <img 
+                                      src={floorPlanImage} 
+                                      alt="Planta Baixa" 
+                                      className="max-h-[75vh] w-auto block select-none" 
+                                      draggable={false}
+                                    />
                                   
                                   {/* Interaction Overlay */}
                                   <div 
@@ -1850,84 +1926,89 @@ export default function App() {
                               </div>
                             </div>
                           </div>
-                        )}
-                      </div>
 
-                        {/* Results Hub */}
-                        {isMeasuringArea && activePoints.length > 2 && calibrationRatio && (
-                          <div className="mt-8 flex flex-wrap justify-center gap-4">
-                            <div className="bg-white px-6 py-4 rounded-2xl border border-slate-100 shadow-xl flex flex-col items-center">
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Área Calculada</p>
-                              <p className="text-2xl font-black text-slate-900">
-                                {(() => {
-                                  let area = 0;
-                                  for (let i = 0; i < activePoints.length; i++) {
-                                    const p1 = activePoints[i];
-                                    const p2 = activePoints[(i + 1) % activePoints.length];
-                                    area += (p1.x * p2.y) - (p2.x * p1.y);
-                                  }
-                                  const realArea = Math.abs(area / 2) / Math.pow(calibrationRatio, 2);
-                                  return realArea.toFixed(2);
-                                })()} m²
-                              </p>
-                            </div>
-                            <div className="bg-white px-6 py-4 rounded-2xl border border-slate-100 shadow-xl flex flex-col items-center">
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Perímetro</p>
-                              <p className="text-2xl font-black text-slate-900">
-                                {(() => {
-                                  let perimeter = 0;
-                                  for (let i = 0; i < activePoints.length; i++) {
-                                    const p1 = activePoints[i];
-                                    const p2 = activePoints[(i + 1) % activePoints.length];
-                                    perimeter += Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
-                                  }
-                                  const realPerimeter = perimeter / calibrationRatio;
-                                  return realPerimeter.toFixed(2);
-                                })()} m
-                              </p>
-                            </div>
-                            <button 
-                              onClick={() => {
-                                let area = 0;
-                                for (let i = 0; i < activePoints.length; i++) {
-                                  const p1 = activePoints[i];
-                                  const p2 = activePoints[(i + 1) % activePoints.length];
-                                  area += (p1.x * p2.y) - (p2.x * p1.y);
-                                }
-                                const realArea = parseFloat(Math.abs(area / 2 / Math.pow(calibrationRatio, 2)).toFixed(2));
-                                
-                                let perimeter = 0;
-                                for (let i = 0; i < activePoints.length; i++) {
-                                  const p1 = activePoints[i];
-                                  const p2 = activePoints[(i + 1) % activePoints.length];
-                                  perimeter += Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
-                                }
-                                const realPerimeter = parseFloat((perimeter / calibrationRatio).toFixed(2));
+                            {/* Results Hub Below Image */}
+                            {isMeasuringArea && activePoints.length > 2 && calibrationRatio && (
+                              <div className="bg-slate-900 px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-6 border-t border-white/10">
+                                <div className="flex items-center gap-8">
+                                  <div className="flex flex-col">
+                                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1">Área Estimada</p>
+                                    <p className="text-2xl font-black text-white mono-value">
+                                      {(() => {
+                                        let area = 0;
+                                        for (let i = 0; i < activePoints.length; i++) {
+                                          const p1 = activePoints[i];
+                                          const p2 = activePoints[(i + 1) % activePoints.length];
+                                          area += (p1.x * p2.y) - (p2.x * p1.y);
+                                        }
+                                        const realArea = Math.abs(area / 2) / Math.pow(calibrationRatio, 2);
+                                        return realArea.toFixed(2);
+                                      })()} <span className="text-slate-500 text-sm">m²</span>
+                                    </p>
+                                  </div>
+                                  <div className="w-px h-10 bg-white/10" />
+                                  <div className="flex flex-col">
+                                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1">Perímetro</p>
+                                    <p className="text-2xl font-black text-white mono-value">
+                                      {(() => {
+                                        let perimeter = 0;
+                                        for (let i = 0; i < activePoints.length; i++) {
+                                          const p1 = activePoints[i];
+                                          const p2 = activePoints[(i + 1) % activePoints.length];
+                                          perimeter += Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+                                        }
+                                        const realPerimeter = perimeter / calibrationRatio;
+                                        return realPerimeter.toFixed(2);
+                                      })()} <span className="text-slate-500 text-sm">m</span>
+                                    </p>
+                                  </div>
+                                </div>
 
-                                // Pre-calculate NBR requirements for the current room type
-                                const specs = calculateNBR(currentRoom.type || 'living', realArea, realPerimeter);
-
-                                setCurrentRoom(prev => ({ 
-                                  ...prev, 
-                                  area: realArea, 
-                                  perimeter: realPerimeter,
-                                  lights: specs.lights,
-                                  tugs: specs.tugs
-                                }));
-                                setIsAddingRoom(true);
-                                setIsMeasuringArea(false);
-                                setActivePoints([]);
-                              }}
-                              className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-3 shadow-xl"
-                            >
-                              <Plus size={16} /> Usar na Criação do Cômodo
-                            </button>
+                                <div className="flex items-center gap-4 w-full sm:w-auto">
+                                  <button 
+                                    onClick={() => setActivePoints([])}
+                                    className="flex-1 sm:flex-none px-6 py-4 text-slate-400 font-black text-[10px] uppercase tracking-widest hover:text-white transition-colors"
+                                  >
+                                    Limpar
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      let area = 0;
+                                      for (let i = 0; i < activePoints.length; i++) {
+                                        const p1 = activePoints[i];
+                                        const p2 = activePoints[(i + 1) % activePoints.length];
+                                        area += (p1.x * p2.y) - (p2.x * p1.y);
+                                      }
+                                      const realArea = parseFloat(Math.abs(area / 2 / Math.pow(calibrationRatio, 2)).toFixed(2));
+                                      
+                                      let perimeter = 0;
+                                      for (let i = 0; i < activePoints.length; i++) {
+                                        const p1 = activePoints[i];
+                                        const p2 = activePoints[(i + 1) % activePoints.length];
+                                        perimeter += Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+                                      }
+                                      const realPerimeter = parseFloat((perimeter / calibrationRatio).toFixed(2));
+                                      const specs = calculateNBR(currentRoom.type || 'living', realArea, realPerimeter);
+                                      setCurrentRoom(prev => ({ ...prev, area: realArea, perimeter: realPerimeter, lights: specs.lights, tugs: specs.tugs }));
+                                      setIsAddingRoom(true);
+                                      setIsMeasuringArea(false);
+                                      setActivePoints([]);
+                                    }}
+                                    className="flex-1 sm:flex-none bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-500 transition-all flex items-center justify-center gap-3 shadow-xl shadow-blue-600/20"
+                                  >
+                                    <Plus size={16} /> Usar na Criação
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    </motion.div>
+                    </div>
                   </div>
-                )}
+                </motion.div>
+              </div>
+            )}
 
                 {rooms.length === 0 ? (
                   <div className="bg-white border-2 border-dashed border-slate-200 rounded-[3rem] p-20 text-center">
@@ -2523,6 +2604,119 @@ export default function App() {
                 </div>
               </motion.div>
             )}
+
+            {activeTab === 'pole_models' && (
+              <motion.div 
+                key="pole_models"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-8 max-w-6xl mx-auto"
+              >
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-12">
+                  <div>
+                    <h3 className="text-3xl font-black text-slate-900 tracking-tighter flex items-center gap-4">
+                      <div className="w-14 h-14 bg-amber-600 rounded-[1.5rem] flex items-center justify-center text-white shadow-2xl shadow-amber-600/20">
+                        <Box size={28} />
+                      </div>
+                      Padrões de Entrada
+                    </h3>
+                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-2 ml-1">Personalize os kits de materiais para cada padrão Copel</p>
+                  </div>
+                </div>
+
+                <div className="space-y-8">
+                  {poleModels.map(model => (
+                    <div key={model.id} className="bg-white border border-slate-100 rounded-[2.5rem] p-10 shadow-sm overflow-hidden group">
+                      <div className="flex items-center justify-between mb-8">
+                        <div className="flex-1">
+                          <input 
+                            type="text"
+                            value={model.name}
+                            onChange={(e) => updatePoleModelName(model.id, e.target.value)}
+                            className="text-2xl font-black text-slate-900 bg-transparent border-none p-0 focus:ring-0 w-full"
+                          />
+                          <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-1">ID: {model.id}</p>
+                        </div>
+                        <button 
+                          onClick={() => addPoleModelItem(model.id)}
+                          className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2"
+                        >
+                          <Plus size={14} /> Add Item
+                        </button>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-slate-50">
+                              <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Item / Material</th>
+                              <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Quant.</th>
+                              <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Unid.</th>
+                              <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Preço Est.</th>
+                              <th className="py-4 px-4 text-right"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {model.items.map(item => (
+                              <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group/row">
+                                <td className="py-4 px-4">
+                                  <div className="flex flex-col">
+                                    <input 
+                                      type="text"
+                                      value={item.name}
+                                      onChange={(e) => updatePoleModelItem(model.id, item.id, 'name', e.target.value)}
+                                      className="text-sm font-bold text-slate-800 bg-transparent border-none p-0 focus:ring-0 w-full"
+                                    />
+                                    <span className="text-[9px] text-slate-400 font-medium">SKU: {item.id}</span>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4">
+                                  <input 
+                                    type="number"
+                                    value={item.quantity}
+                                    onChange={(e) => updatePoleModelItem(model.id, item.id, 'quantity', Number(e.target.value))}
+                                    className="w-16 text-sm font-black text-slate-900 bg-slate-100/50 border-none rounded-lg px-2 py-1 focus:ring-2 focus:ring-blue-500/20"
+                                  />
+                                </td>
+                                <td className="py-4 px-4">
+                                  <input 
+                                    type="text"
+                                    value={item.unit}
+                                    onChange={(e) => updatePoleModelItem(model.id, item.id, 'unit', e.target.value)}
+                                    className="w-12 text-[10px] font-bold text-slate-500 uppercase bg-transparent border-none p-0 focus:ring-0"
+                                  />
+                                </td>
+                                <td className="py-4 px-4">
+                                  <div className="flex items-center gap-1 group/price">
+                                    <span className="text-[10px] font-bold text-slate-400">R$</span>
+                                    <input 
+                                      type="number"
+                                      step="0.01"
+                                      value={catalog[item.id] || 0}
+                                      onChange={(e) => updateCatalogItem(item.id, Number(e.target.value))}
+                                      className="w-20 text-sm font-black text-slate-900 bg-transparent border-none p-0 focus:ring-0 mono-value group-hover/price:text-blue-600 transition-colors"
+                                    />
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 text-right">
+                                  <button 
+                                    onClick={() => removePoleModelItem(model.id, item.id)}
+                                    className="p-2 text-slate-200 hover:text-red-500 transition-colors"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
 
           <AnimatePresence>
@@ -2750,7 +2944,7 @@ export default function App() {
       {/* Add Room Drawer/Modal - Simplified overlay */}
       <AnimatePresence>
         {isAddingRoom && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-10 sm:pt-20 overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -3094,7 +3288,7 @@ export default function App() {
       {/* Delete Project Confirmation Modal */}
       <AnimatePresence>
         {projectToDelete && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-20">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -3271,7 +3465,7 @@ export default function App() {
       {/* Budget Selection Modal */}
       <AnimatePresence>
         {showBudgetSelectionModal.open && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-20">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
