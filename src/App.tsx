@@ -217,6 +217,82 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
+  // Migration logic from localStorage to Firestore
+  useEffect(() => {
+    if (!user || authLoading) return;
+
+    const migrate = async () => {
+      // Migrate Projects
+      const localProjects = localStorage.getItem('eletrocalc_projects');
+      if (localProjects) {
+        try {
+          const parsed = JSON.parse(localProjects) as Project[];
+          for (const project of parsed) {
+            // Check if project already exists in Firestore to avoid duplicates
+            const docRef = doc(db, 'projects', project.id);
+            const docSnap = await getDoc(docRef);
+            if (!docSnap.exists()) {
+              await setDoc(docRef, { ...project, userId: user.uid });
+            }
+          }
+          localStorage.removeItem('eletrocalc_projects');
+        } catch (e) {
+          console.error("Migration error (projects):", e);
+        }
+      }
+
+      // Migrate Catalog
+      const localCatalog = localStorage.getItem('eletrocalc_catalog');
+      if (localCatalog) {
+        try {
+          const parsed = JSON.parse(localCatalog);
+          await saveCatalog(parsed);
+          localStorage.removeItem('eletrocalc_catalog');
+        } catch (e) {
+          console.error("Migration error (catalog):", e);
+        }
+      }
+
+      // Migrate Technicians
+      const localTechs = localStorage.getItem('eletrocalc_technicians');
+      if (localTechs) {
+        try {
+          const parsed = JSON.parse(localTechs) as TechnicianInfo[];
+          for (const tech of parsed) {
+            const techRef = doc(db, 'technicians', tech.id);
+            const techSnap = await getDoc(techRef);
+            if (!techSnap.exists()) {
+              await setDoc(techRef, { ...tech, userId: user.uid });
+            }
+          }
+          localStorage.removeItem('eletrocalc_technicians');
+        } catch (e) {
+          console.error("Migration error (technicians):", e);
+        }
+      }
+      
+      // Migrate Pole Models
+      const localPoles = localStorage.getItem('eletrocalc_pole_models');
+      if (localPoles) {
+        try {
+          const parsed = JSON.parse(localPoles) as EntryPoleModel[];
+          for (const pole of parsed) {
+            const poleRef = doc(db, 'pole_models', pole.id);
+            const poleSnap = await getDoc(poleRef);
+            if (!poleSnap.exists()) {
+              await savePoleModel(pole);
+            }
+          }
+          localStorage.removeItem('eletrocalc_pole_models');
+        } catch (e) {
+          console.error("Migration error (poles):", e);
+        }
+      }
+    };
+
+    migrate();
+  }, [user, authLoading]);
+
   // Initial Project Selection
   useEffect(() => {
     if (user && projects.length > 0 && !currentProjectId) {
