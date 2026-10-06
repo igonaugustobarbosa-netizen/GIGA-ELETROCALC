@@ -1361,11 +1361,7 @@ export default function App() {
 
                 <div className="flex items-center gap-2">
                   <button 
-                    onClick={() => {
-                      const name = projects.find(p => p.id === currentProjectId)?.name || 'Projeto';
-                      const poleModelName = poleModels.find(m => m.id === selectedPoleModelId)?.name;
-                      generateElectricalPDF(name, rooms, materialList, customMaterials, totalPower, catalog, totalBudget, poleModelName, floorPlanImage, technician);
-                    }}
+                    onClick={() => setShowBudgetSelectionModal({ type: 'simple', open: true })}
                     className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-yellow-400/20 active:scale-95 flex items-center gap-2"
                     title="Gera lista simplificada de materiais"
                   >
@@ -2362,7 +2358,7 @@ export default function App() {
                       <div className="space-y-4 mb-12">
                         <div className="flex justify-between items-center py-3 border-b border-white/5">
                           <span className="text-[10px] font-bold text-slate-400 uppercase">Área Total</span>
-                          <span className="text-sm font-black mono-value">{rooms.reduce((acc, r) => acc + r.area, 0).toFixed(2)} m²</span>
+                          <span className="text-sm font-black mono-value">{rooms.reduce((acc, r) => acc + Number(Number(r.area).toFixed(2)), 0).toFixed(2)} m²</span>
                         </div>
                         <div className="flex justify-between items-center py-3 border-b border-white/5">
                           <span className="text-[10px] font-bold text-slate-400 uppercase">Potência Total</span>

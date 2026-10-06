@@ -348,7 +348,7 @@ export function generateDetailedMaterialList(rooms: Room[], poleModel: EntryPole
     byRoom: [],
     serviceEntrance: [],
     commonItems: [],
-    totalArea: rooms.reduce((acc, r) => acc + r.area, 0)
+    totalArea: rooms.reduce((acc, r) => acc + Number(Number(r.area).toFixed(2)), 0)
   };
 
   // 1. Service Entrance (Padrão de Entrada)
@@ -423,7 +423,7 @@ export function generateDetailedMaterialList(rooms: Room[], poleModel: EntryPole
 
     result.byRoom.push({
       roomName: room.name,
-      roomArea: room.area,
+      roomArea: Number(Number(room.area).toFixed(2)),
       materials: roomMaterials
     });
   });

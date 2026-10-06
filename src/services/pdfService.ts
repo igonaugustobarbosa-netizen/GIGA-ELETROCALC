@@ -50,7 +50,7 @@ export function generateElectricalPDF(
   doc.setFontSize(14);
   doc.text('Resumo do Projeto', 14, 55);
   
-  const totalArea = rooms.reduce((acc, r) => acc + r.area, 0);
+  const totalArea = rooms.reduce((acc, r) => acc + Number(Number(r.area).toFixed(2)), 0);
   const summaryBody = [
     ['Nome do Projeto', projectName],
     ['Total de Cômodos', rooms.length.toString()],
@@ -84,8 +84,8 @@ export function generateElectricalPDF(
     head: [['Cômodo', 'Área', 'Perímetro', 'Ilum. (VA)', 'TUGs', 'TUEs']],
     body: rooms.map(r => [
       r.name,
-      `${r.area}m2`,
-      `${r.perimeter}m`,
+      `${Number(r.area).toFixed(2)} m²`,
+      `${Number(r.perimeter).toFixed(2)} m`,
       `${r.lights} VA`,
       r.tugs.toString(),
       r.tues.map(t => `${t.description} (${t.power}W - ${t.voltage}V)`).join('\n')
