@@ -48,7 +48,9 @@ import {
   GitCommit,
   GitMerge,
   Edit,
-  ListChecks
+  ListChecks,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 import { Area } from "react-easy-crop";
 import { ImageCropper } from "./components/ImageCropper";
@@ -59,8 +61,27 @@ import { cn } from './lib/utils';
 import { Room, MaterialItem, TUE, Project, ProjectMaterial, EntryPoleModel, TechnicianInfo } from './types';
 import { calculateRoomRequirements, generateMaterialList, generateDetailedMaterialList, prepareDiagramData } from './services/electricalLogic';
 import { generateElectricalPDF, generateDetailedElectricalPDF, generateSingleLineDiagramPDF, generateFloorPlanPDF } from './services/pdfService';
-import { ROOM_TYPES, DEFAULT_CATALOG, CATALOG_NAMES } from './constants';
+import { ROOM_TYPES, DEFAULT_CATALOG, CATALOG_NAMES, DEFAULT_POLE_MODELS } from './constants';
 import { calculateVoltageDrop } from './services/voltageDrop';
+import { 
+  auth, 
+  db, 
+  googleProvider, 
+  signInWithPopup, 
+  onAuthStateChanged, 
+  FirebaseUser,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  collection,
+  query,
+  where,
+  onSnapshot,
+  handleFirestoreError,
+  OperationType
+} from './firebase';
 
 const RoomIcon = ({ type, className }: { type: string; className?: string }) => {
   switch (type) {
@@ -75,31 +96,10 @@ const RoomIcon = ({ type, className }: { type: string; className?: string }) => 
 };
 
 export default function App() {
-  const [projects, setProjects] = useState<Project[]>(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('eletrocalc_projects') : null;
-    if (saved === null) {
-      const firstProject: Project = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: `Projeto 001`,
-        rooms: [],
-        customMaterials: [],
-        selectedPoleModelId: 'default-trifasico',
-        serviceEntranceLength: 10,
-        serviceEntranceGauge: 16,
-        calculateOnlyPole: false,
-        createdAt: Date.now(),
-        updatedAt: new Date().toISOString()
-      };
-      return [firstProject];
-    }
-    try {
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      console.error("Erro ao carregar projetos:", e);
-      return [];
-    }
-  });
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  const [projects, setProjects] = useState<Project[]>([]);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [customMaterials, setCustomMaterials] = useState<ProjectMaterial[]>([]);
@@ -109,42 +109,197 @@ export default function App() {
   const [editingTechId, setEditingTechId] = useState<string | null>(null);
   const [currentTech, setCurrentTech] = useState<TechnicianInfo>({ id: '', name: '', license: '', phone: '' });
 
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error("Erro ao fazer login:", error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      setProjects([]);
+      setTechnicians([]);
+      setCatalog(DEFAULT_CATALOG);
+    } catch (error) {
+      console.error("Erro ao fazer logout:", error);
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Sync Projects
+  useEffect(() => {
+    if (!user) {
+      setProjects([]);
+      return;
+    }
+
+    const q = query(collection(db, 'projects'), where('userId', '==', user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const projectsData = snapshot.docs.map(doc => doc.data() as Project);
+      setProjects(projectsData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'projects');
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Sync Technicians
+  useEffect(() => {
+    if (!user) {
+      setTechnicians([]);
+      return;
+    }
+
+    const q = query(collection(db, 'technicians'), where('userId', '==', user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const techsData = snapshot.docs.map(doc => doc.data() as TechnicianInfo);
+      setTechnicians(techsData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'technicians');
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Sync Catalog
+  useEffect(() => {
+    if (!user) {
+      setCatalog(DEFAULT_CATALOG);
+      return;
+    }
+
+    const unsubscribe = onSnapshot(doc(db, 'catalogs', user.uid), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setCatalog({ ...DEFAULT_CATALOG, ...data.prices });
+      } else {
+        setCatalog(DEFAULT_CATALOG);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `catalogs/${user.uid}`);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Sync Pole Models
+  useEffect(() => {
+    if (!user) {
+      setPoleModels([]);
+      return;
+    }
+
+    const q = query(collection(db, 'pole_models'), where('userId', '==', user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const modelsData = snapshot.docs.map(doc => doc.data() as EntryPoleModel);
+      if (modelsData.length > 0) {
+        setPoleModels(modelsData);
+      } else {
+        // If no custom models, load defaults but don't save them to Firestore yet
+        // to avoid cluttering unless user modifies them
+        setPoleModels(DEFAULT_POLE_MODELS);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'pole_models');
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Initial Project Selection
+  useEffect(() => {
+    if (user && projects.length > 0 && !currentProjectId) {
+      // Sort by updatedAt descending and pick the first one
+      const sorted = [...projects].sort((a, b) => 
+        new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+      );
+      setCurrentProjectId(sorted[0].id);
+    }
+  }, [user, projects, currentProjectId]);
+
   const handleTechDataChange = (field: keyof TechnicianInfo, value: any) => {
     setCurrentTech(prev => ({ ...prev, [field]: value }));
   };
 
-  const saveTechnician = () => {
+  const saveTechnician = async () => {
+    if (!user) {
+      alert('Você precisa estar logado para cadastrar técnicos.');
+      return;
+    }
+    
     if (!currentTech.name) {
       alert('Por favor, informe o nome do técnico.');
       return;
     }
 
-    if (editingTechId) {
-      const updatedTech = { ...currentTech, id: editingTechId };
-      setTechnicians(prev => {
-        const updated = prev.map(t => t.id === editingTechId ? updatedTech : t);
-        return updated;
-      });
-      if (technician.id === editingTechId || !technician.id) {
-        setTechnician(updatedTech);
-        saveProject(undefined, undefined, undefined, undefined, undefined, undefined, updatedTech);
-      }
-    } else {
-      const newTech = { ...currentTech, id: `tech-${Date.now()}` };
-      setTechnicians(prev => [...prev, newTech]);
-      setTechnician(newTech);
-      saveProject(undefined, undefined, undefined, undefined, undefined, undefined, newTech);
-    }
+    const techId = editingTechId || `tech-${Date.now()}`;
+    const techData = { 
+      ...currentTech, 
+      id: techId,
+      userId: user.uid 
+    };
 
-    setIsAddingTechnician(false);
-    setEditingTechId(null);
-    setCurrentTech({ id: '', name: '', license: '', phone: '' });
+    try {
+      await setDoc(doc(db, 'technicians', techId), techData);
+      
+      if (technician.id === editingTechId || !technician.id) {
+        setTechnician(techData);
+        saveProject(undefined, undefined, undefined, undefined, undefined, undefined, techData);
+      }
+      
+      setIsAddingTechnician(false);
+      setEditingTechId(null);
+      setCurrentTech({ id: '', name: '', license: '', phone: '' });
+      alert('Técnico salvo com sucesso!');
+    } catch (error) {
+      console.error("Erro ao salvar técnico:", error);
+      handleFirestoreError(error, OperationType.WRITE, `technicians/${techId}`);
+    }
+  };
+  const deleteTechnician = async (tech: TechnicianInfo) => {
+    try {
+      await deleteDoc(doc(db, 'technicians', tech.id));
+      if (technician.id === tech.id) {
+        const empty = { id: '', name: '', license: '', phone: '' };
+        setTechnician(empty);
+        saveProject(undefined, undefined, undefined, undefined, undefined, undefined, empty);
+      }
+      setTechToDelete(null);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `technicians/${tech.id}`);
+    }
+  };
+
+  const savePoleModel = async (model: EntryPoleModel) => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'pole_models', model.id), { ...model, userId: user.uid });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `pole_models/${model.id}`);
+    }
+  };
+
+  const deletePoleModel = async (modelId: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'pole_models', modelId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `pole_models/${modelId}`);
+    }
   };
   const [technician, setTechnician] = useState<TechnicianInfo>({ id: '', name: '', license: '', phone: '' });
-  const [technicians, setTechnicians] = useState<TechnicianInfo[]>(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('eletrocalc_technicians') : null;
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [technicians, setTechnicians] = useState<TechnicianInfo[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'rooms' | 'materials' | 'catalog' | 'technicians' | 'pole_models'>('rooms');
   const [catalogSearch, setCatalogSearch] = useState('');
@@ -154,10 +309,7 @@ export default function App() {
   const [techToDelete, setTechToDelete] = useState<TechnicianInfo | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingProjectName, setEditingProjectName] = useState("");
-  const [catalog, setCatalog] = useState<Record<string, number>>(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('eletrocalc_catalog') : null;
-    return saved ? { ...DEFAULT_CATALOG, ...JSON.parse(saved) } : DEFAULT_CATALOG;
-  });
+  const [catalog, setCatalog] = useState<Record<string, number>>(DEFAULT_CATALOG);
   const [selectedPoleModelId, setSelectedPoleModelId] = useState<string | null>(null);
   const [floorPlanImage, setFloorPlanImage] = useState<string | undefined>(undefined);
   const [calibrationRatio, setCalibrationRatio] = useState<number | undefined>(undefined);
@@ -173,432 +325,7 @@ export default function App() {
   const [isAddingCatalogItem, setIsAddingCatalogItem] = useState(false);
   const [newCatalogItem, setNewCatalogItem] = useState({ name: '', category: 'cable', price: 0 });
   const [calculateOnlyPole, setCalculateOnlyPole] = useState(false);
-  const [poleModels, setPoleModels] = useState<EntryPoleModel[]>(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('eletrocalc_pole_models') : null;
-    return saved ? JSON.parse(saved) : [
-    {
-      id: 'trifasico-127-220v-100a-subterraneo',
-      name: 'Trifásico 127/220V 100A Subterrâneo',
-      items: [
-        { id: 'caixa-copel-trifasica-sub', name: 'Caixa de Medição Trifásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-tripolar-100', name: 'Disjuntor Tripolar 100A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-cobre-50', name: 'Cabo Cobre 50 mm² (3 Fases + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 4, unit: 'un', category: 'device' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-longa-2', name: 'Curvas Longas 90° 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'trifasico-127-220v-80a-subterraneo',
-      name: 'Trifásico 127/220V 80A Subterrâneo',
-      items: [
-        { id: 'caixa-copel-trifasica-sub', name: 'Caixa de Medição Trifásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-tripolar-80', name: 'Disjuntor Tripolar 80A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-cobre-35', name: 'Cabo Cobre 35 mm² (3 Fases + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 4, unit: 'un', category: 'device' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-longa-2', name: 'Curvas Longas 90° 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'trifasico-127-220v-63a-subterraneo',
-      name: 'Trifásico 127/220V 63A Subterrâneo',
-      items: [
-        { id: 'caixa-copel-trifasica-sub', name: 'Caixa de Medição Trifásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-tripolar-63', name: 'Disjuntor Tripolar 63A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-cobre-25', name: 'Cabo Cobre 25 mm² (3 Fases + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 4, unit: 'un', category: 'device' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-longa-2', name: 'Curvas Longas 90° 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'trifasico-127-220v-50a-subterraneo',
-      name: 'Trifásico 127/220V 50A Subterrâneo',
-      items: [
-        { id: 'caixa-copel-trifasica-sub', name: 'Caixa de Medição Trifásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-tripolar-50', name: 'Disjuntor Tripolar 50A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-cobre-16', name: 'Cabo Cobre 16 mm² (3 Fases + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 4, unit: 'un', category: 'device' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-longa-2', name: 'Curvas Longas 90° 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'bifasico-127-220v-63a-subterraneo',
-      name: 'Bifásico 127/220V 63A Subterrâneo',
-      items: [
-        { id: 'caixa-copel-monofasica-sub', name: 'Caixa de Medição Bifásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-bipolar-63', name: 'Disjuntor Bipolar 63A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-cobre-25', name: 'Cabo Cobre 25 mm² (2 Fases + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 3, unit: 'un', category: 'device' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-longa-2', name: 'Curvas Longas 90° 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'bifasico-127-220v-40a-subterraneo',
-      name: 'Bifásico 127/220V 40A Subterrâneo',
-      items: [
-        { id: 'caixa-copel-monofasica-sub', name: 'Caixa de Medição Bifásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-bipolar-40', name: 'Disjuntor Bipolar 40A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-cobre-10', name: 'Cabo Cobre 10 mm² (Fases + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 3, unit: 'un', category: 'device' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-10', name: 'Cabo Verde 10 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-1.5', name: 'Eletroduto PVC Rígido 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-longa-1.5', name: 'Curvas Longas 90° 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-1.5', name: 'Luvas 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'monofasico-127v-50a-subterraneo',
-      name: 'Monofásico 127V 50A Subterrâneo',
-      items: [
-        { id: 'caixa-copel-monofasica-sub', name: 'Caixa de Medição Monofásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-monopolar-50', name: 'Disjuntor Monopolar 50A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-cobre-16', name: 'Cabo Cobre 16 mm² (Fase + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-10', name: 'Cabo Verde 10 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-1.5', name: 'Eletroduto PVC Rígido 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-longa-1.5', name: 'Curvas Longas 90° 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-1.5', name: 'Luvas 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'monofasico-127v-30a-subterraneo',
-      name: 'Monofásico 127V 30A Subterrâneo',
-      items: [
-        { id: 'caixa-copel-monofasica-sub', name: 'Caixa de Medição Monofásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-monopolar-30', name: 'Disjuntor Monopolar 30A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-cobre-10', name: 'Cabo Cobre 10 mm² (Fase + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-10', name: 'Cabo Verde 10 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-1.5', name: 'Eletroduto PVC Rígido 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-longa-1.5', name: 'Curvas Longas 90° 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-1.5', name: 'Luvas 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'monofasico-127v-aereo',
-      name: 'Monofásico 127V 30A Aéreo',
-      items: [
-        { id: 'caixa-copel-monofasica', name: 'Caixa de Medição Monofásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-monopolar-30', name: 'Disjuntor Monopolar 30A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-multiplex-2x10', name: 'Cabo Multiplexado Alumínio 2x10 mm²', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-10', name: 'Cabo Verde 10 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-1.5', name: 'Eletroduto PVC Rígido 1 1/2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'monofasico-127v-40a-aereo',
-      name: 'Monofásico 127V 40A Aéreo',
-      items: [
-        { id: 'caixa-copel-monofasica', name: 'Caixa de Medição Monofásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-monopolar-40', name: 'Disjuntor Monopolar 40A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-multiplex-2x16', name: 'Cabo Multiplexado Alumínio 2x16 mm²', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-10', name: 'Cabo Verde 10 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-1.5', name: 'Eletroduto PVC Rígido 1 1/2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'monofasico-127v-50a-aereo',
-      name: 'Monofásico 127V 50A Aéreo',
-      items: [
-        { id: 'caixa-copel-monofasica', name: 'Caixa de Medição Monofásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-monopolar-50', name: 'Disjuntor Monopolar 50A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-multiplex-2x16', name: 'Cabo Multiplexado Alumínio 2x16 mm²', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-10', name: 'Cabo Verde 10 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-1.5', name: 'Eletroduto PVC Rígido 1 1/2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'bifasico-110-220v-40a-aereo',
-      name: 'Bifásico 110/220V 40A Aéreo',
-      items: [
-        { id: 'caixa-copel-bifasica', name: 'Caixa de Medição Bifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-bipolar-40', name: 'Disjuntor Bipolar 40A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-multiplex-3x16', name: 'Cabo Multiplexado Alumínio 3x16 mm²', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 3, unit: 'un', category: 'device' },
-        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-90-2', name: 'Curvas 90° 2"', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas para Eletroduto 2"', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'bifasico-110-220v-50a-aereo',
-      name: 'Bifásico 110/220V 50A Aéreo',
-      items: [
-        { id: 'caixa-copel-bifasica', name: 'Caixa de Medição Bifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-bipolar-50', name: 'Disjuntor Bipolar 50A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-multiplex-3x25', name: 'Cabo Multiplexado Alumínio 3x25 mm²', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 3, unit: 'un', category: 'device' },
-        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'bifasico-110-220v-63a-aereo',
-      name: 'Bifásico 110/220V 63A Aéreo',
-      items: [
-        { id: 'caixa-copel-bifasica', name: 'Caixa de Medição Bifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-bipolar-63', name: 'Disjuntor Bipolar 63A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-multiplex-3x25', name: 'Cabo Multiplexado Alumínio 3x25 mm²', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 3, unit: 'un', category: 'device' },
-        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'bifasico-110-220v-70a-aereo',
-      name: 'Bifásico 110/220V 70A Aéreo',
-      items: [
-        { id: 'caixa-copel-bifasica', name: 'Caixa de Medição Bifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-bipolar-70', name: 'Disjuntor Bipolar 70A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-multiplex-3x35', name: 'Cabo Multiplexado Alumínio 3x35 mm²', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 3, unit: 'un', category: 'device' },
-        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'trifasico-127-220v-50a-aereo',
-      name: 'Trifásico 127/220V 50A Aéreo',
-      items: [
-        { id: 'caixa-copel-trifasica', name: 'Caixa de Medição Trifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-tripolar-50', name: 'Disjuntor Tripolar 50A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-multiplex-4x25', name: 'Cabo Multiplexado Alumínio 4x25 mm²', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 4, unit: 'un', category: 'device' },
-        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'trifasico-127-220v-63a-aereo',
-      name: 'Trifásico 127/220V 63A Aéreo',
-      items: [
-        { id: 'caixa-copel-trifasica', name: 'Caixa de Medição Trifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-tripolar-63', name: 'Disjuntor Tripolar 63A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-multiplex-4x25', name: 'Cabo Multiplexado Alumínio 4x25 mm²', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 4, unit: 'un', category: 'device' },
-        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'trifasico-127-220v-80a-aereo',
-      name: 'Trifásico 127/220V 80A Aéreo',
-      items: [
-        { id: 'caixa-copel-trifasica', name: 'Caixa de Medição Trifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-tripolar-80', name: 'Disjuntor Tripolar 80A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-multiplex-4x35', name: 'Cabo Multiplexado Alumínio 4x35 mm²', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 4, unit: 'un', category: 'device' },
-        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    },
-    {
-      id: 'trifasico-127-220v-100a-aereo',
-      name: 'Trifásico 127/220V 100A Aéreo',
-      items: [
-        { id: 'caixa-copel-trifasica', name: 'Caixa de Medição Trifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
-        { id: 'breaker-tripolar-100', name: 'Disjuntor Tripolar 100A', quantity: 1, unit: 'un', category: 'breaker' },
-        { id: 'cabo-multiplex-4x50', name: 'Cabo Multiplexado Alumínio 4x50 mm²', quantity: 20, unit: 'm', category: 'cable' },
-        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 4, unit: 'un', category: 'device' },
-        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
-        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
-        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
-        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
-        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
-        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
-        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
-        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
-      ]
-    }
-    ];
-  });
+  const [poleModels, setPoleModels] = useState<EntryPoleModel[]>([]);
   const [isManagingCatalog, setIsManagingCatalog] = useState(false);
   const [isManagingPoleModels, setIsManagingPoleModels] = useState(false);
 
@@ -611,18 +338,6 @@ export default function App() {
     { id: 'chuveiro', name: 'Equipamentos e Outros', pattern: 'chuveiro|torneira|fita|bucha' },
     { id: 'other', name: 'Outros / Personalizados', pattern: 'custom' }
   ];
-
-  useEffect(() => {
-    localStorage.setItem('eletrocalc_catalog', JSON.stringify(catalog));
-  }, [catalog]);
-
-  useEffect(() => {
-    localStorage.setItem('eletrocalc_pole_models', JSON.stringify(poleModels));
-  }, [poleModels]);
-
-  useEffect(() => {
-    localStorage.setItem('eletrocalc_technicians', JSON.stringify(technicians));
-  }, [technicians]);
 
   // Helper to format project number
   const formatProjectNumber = (num: number) => String(num).padStart(5, '0');
@@ -646,8 +361,7 @@ export default function App() {
     }
   }, [projects.length, currentProjectId]);
 
-  // Save specific project
-  const saveProject = (
+  const saveProject = async (
     updatedRooms?: Room[], 
     updatedCustom?: ProjectMaterial[], 
     updatedPoleId?: string | null, 
@@ -658,6 +372,8 @@ export default function App() {
     updatedSeLength?: number, 
     updatedSeGauge?: number
   ) => {
+    if (!user || !currentProjectId) return;
+
     const roomsToSave = updatedRooms || rooms;
     const customToSave = updatedCustom || customMaterials;
     const poleToSave = updatedPoleId !== undefined ? updatedPoleId : selectedPoleModelId;
@@ -668,100 +384,97 @@ export default function App() {
     const seLengthToSave = updatedSeLength !== undefined ? updatedSeLength : serviceEntranceLength;
     const seGaugeToSave = updatedSeGauge !== undefined ? updatedSeGauge : serviceEntranceGauge;
 
+    const projectData = { 
+      rooms: roomsToSave, 
+      customMaterials: customToSave, 
+      selectedPoleModelId: poleToSave, 
+      calculateOnlyPole: onlyPoleToSave, 
+      floorPlanImage: floorPlanToSave || null,
+      calibrationRatio: calibrationToSave || null,
+      technician: technicianToSave,
+      serviceEntranceLength: seLengthToSave,
+      serviceEntranceGauge: seGaugeToSave,
+      updatedAt: new Date().toISOString()
+    };
+
     try {
-      if (currentProjectId) {
-        setProjects(prev => {
-          const updated = prev.map(p => 
-            p.id === currentProjectId ? { 
-              ...p, 
-              rooms: roomsToSave, 
-              customMaterials: customToSave, 
-              selectedPoleModelId: poleToSave, 
-              calculateOnlyPole: onlyPoleToSave, 
-              floorPlanImage: floorPlanToSave,
-              calibrationRatio: calibrationToSave,
-              technician: technicianToSave,
-              serviceEntranceLength: seLengthToSave,
-              serviceEntranceGauge: seGaugeToSave
-            } : p
-          );
-          localStorage.setItem('eletrocalc_projects', JSON.stringify(updated));
-          return updated;
-        });
-      }
+      await updateDoc(doc(db, 'projects', currentProjectId), projectData);
     } catch (e) {
-      console.error("Erro ao salvar projeto:", e);
-      if (e instanceof Error && e.name === 'QuotaExceededError') {
-        alert("O armazenamento local está cheio. Tente remover arquivos de outros projetos ou usar imagens menores.");
-      }
+      handleFirestoreError(e, OperationType.WRITE, `projects/${currentProjectId}`);
     }
   };
 
-  const createNewProject = () => {
-    const nextNumber = projects.length + 1;
+  const createNewProject = async () => {
+    if (!user) return;
+    
+    const projectId = Math.random().toString(36).substr(2, 9);
     const newProject: Project = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: `Projeto ${formatProjectNumber(nextNumber)}`,
+      id: projectId,
+      name: `Projeto ${projects.length + 1}`,
+      userId: user.uid,
       rooms: [],
       customMaterials: [],
       selectedPoleModelId: 'default-trifasico',
       serviceEntranceLength: 10,
       serviceEntranceGauge: 16,
       calculateOnlyPole: false,
-      floorPlanImage: undefined,
-      calibrationRatio: undefined,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      updatedAt: new Date().toISOString()
     };
-    const updatedProjects = [...projects, newProject];
-    setProjects(updatedProjects);
-    setCurrentProjectId(newProject.id);
-    setSelectedPoleModelId('default-trifasico');
-    setServiceEntranceLength(10);
-    setServiceEntranceGauge(16);
-    setCalculateOnlyPole(false);
-    setFloorPlanImage(undefined);
-    setTechnician({ id: '', name: '', license: '', phone: '' });
-    setRooms([]);
-    setCustomMaterials([]);
-    localStorage.setItem('eletrocalc_projects', JSON.stringify(updatedProjects));
-  };
 
-  const renameProject = (id: string, newName: string) => {
-    const updated = projects.map(p => p.id === id ? { ...p, name: newName } : p);
-    setProjects(updated);
-    localStorage.setItem('eletrocalc_projects', JSON.stringify(updated));
-  };
-
-  const deleteTechnician = (tech: TechnicianInfo) => {
-    setTechnicians(prev => prev.filter(item => item.id !== tech.id));
-    if (technician.id === tech.id) {
-      const empty = { id: '', name: '', license: '', phone: '' };
-      setTechnician(empty);
-      saveProject(undefined, undefined, undefined, undefined, undefined, undefined, empty);
-    }
-    setTechToDelete(null);
-  };
-
-  const deleteProject = (id: string) => {
-    const updated = projects.filter(p => p.id !== id);
-    setProjects(updated);
-    setProjectToDelete(null);
-    localStorage.setItem('eletrocalc_projects', JSON.stringify(updated));
-    
-    if (updated.length === 0) {
-      setCurrentProjectId(null);
+    try {
+      await setDoc(doc(db, 'projects', projectId), newProject);
+      setCurrentProjectId(projectId);
       setRooms([]);
       setCustomMaterials([]);
-    } else if (currentProjectId === id) {
-      const next = updated[0];
-      setCurrentProjectId(next.id);
-      setRooms(next.rooms);
-      setCustomMaterials(next.customMaterials || []);
-      setSelectedPoleModelId(next.selectedPoleModelId);
-      setCalculateOnlyPole(next.calculateOnlyPole || false);
-      setFloorPlanImage(next.floorPlanImage);
-      setCalibrationRatio(next.calibrationRatio);
-      setTechnician(next.technician || { id: '', name: '', license: '', phone: '' });
+      setSelectedPoleModelId('default-trifasico');
+      setFloorPlanImage(undefined);
+      setCalibrationRatio(undefined);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, `projects/${projectId}`);
+    }
+  };
+
+  const deleteProject = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'projects', id));
+      if (currentProjectId === id) {
+        setCurrentProjectId(null);
+        setRooms([]);
+        setCustomMaterials([]);
+      }
+      setProjectToDelete(null);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `projects/${id}`);
+    }
+  };
+
+  const renameProject = async (id: string, newName: string) => {
+    try {
+      await updateDoc(doc(db, 'projects', id), { name: newName });
+      setEditingProjectId(null);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `projects/${id}`);
+    }
+  };
+
+  const updateCatalogPrice = async (itemId: string, price: number) => {
+    if (!user) return;
+    const newPrices = { ...catalog, [itemId]: price };
+    const overrides: Record<string, number> = {};
+    Object.keys(newPrices).forEach(key => {
+      if (newPrices[key] !== DEFAULT_CATALOG[key]) {
+        overrides[key] = newPrices[key];
+      }
+    });
+
+    try {
+      await setDoc(doc(db, 'catalogs', user.uid), { 
+        userId: user.uid,
+        prices: overrides 
+      }, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `catalogs/${user.uid}`);
     }
   };
 
@@ -971,20 +684,37 @@ export default function App() {
     }, 0);
   }, [rooms]);
 
-  const saveCatalog = (newCatalog: Record<string, number>) => {
+  const saveCatalog = async (newCatalog: Record<string, number>) => {
     setCatalog(newCatalog);
-    localStorage.setItem('eletrocalc_catalog', JSON.stringify(newCatalog));
+    if (user) {
+      try {
+        await setDoc(doc(db, 'catalogs', user.uid), { 
+          userId: user.uid, 
+          prices: newCatalog 
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, `catalogs/${user.uid}`);
+      }
+    }
   };
 
-  const addCatalogItem = () => {
-    if (!newCatalogItem.name) return;
+  const addCatalogItem = async () => {
+    if (!newCatalogItem.name || !user) return;
     const prefix = newCatalogItem.category === 'other' ? 'custom' : newCatalogItem.category;
     const id = `${prefix}-${Date.now()}`;
     const updated = { ...catalog, [id]: newCatalogItem.price };
+    
     setCatalog(updated);
-    localStorage.setItem('eletrocalc_catalog', JSON.stringify(updated));
-    setIsAddingCatalogItem(false);
-    setNewCatalogItem({ name: '', category: 'cable', price: 0 });
+    try {
+      await setDoc(doc(db, 'catalogs', user.uid), { 
+        userId: user.uid, 
+        prices: updated 
+      });
+      setIsAddingCatalogItem(false);
+      setNewCatalogItem({ name: '', category: 'cable', price: 0 });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `catalogs/${user.uid}`);
+    }
   };
 
   const addCustomMaterial = () => {
@@ -1346,6 +1076,29 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-6">
+            {!user ? (
+              <button 
+                onClick={handleLogin}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 active:scale-95 flex items-center gap-2"
+              >
+                <LogIn size={16} /> Entrar com Google
+              </button>
+            ) : (
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col text-right hidden sm:flex">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Conectado como</span>
+                  <span className="text-[11px] font-black text-slate-900 truncate max-w-[120px]">{user.displayName || user.email}</span>
+                </div>
+                <button 
+                  onClick={handleLogout}
+                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                  title="Sair"
+                >
+                  <LogOut size={20} />
+                </button>
+              </div>
+            )}
+
             {currentProjectId && (
               <>
                 <div className="flex items-center gap-6 pr-6 border-r border-slate-200 hidden lg:flex">
@@ -1702,50 +1455,6 @@ export default function App() {
                       </div>
 
                       <div className="flex flex-col flex-1 bg-slate-50/50">
-                        {/* Measurement Instructions Bar */}
-                        <AnimatePresence>
-                          {(isCalibrating || isMeasuringArea) && (
-                            <motion.div 
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="bg-slate-900 border-b border-white/10 overflow-hidden"
-                            >
-                              <div className="px-8 py-4 flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-4">
-                                  {isCalibrating ? (
-                                    <>
-                                      <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center">
-                                        <Ruler size={16} className="text-amber-400" />
-                                      </div>
-                                      <div className="flex flex-col">
-                                        <p className="text-[10px] font-black text-white uppercase tracking-widest">Calibração</p>
-                                        <p className="text-xs text-slate-400 font-bold">Clique em dois pontos com distância conhecida para calibrar a escala.</p>
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                                        <Square size={16} className="text-blue-400" />
-                                      </div>
-                                      <div className="flex flex-col">
-                                        <p className="text-[10px] font-black text-white uppercase tracking-widest">Medição de Área</p>
-                                        <p className="text-xs text-slate-400 font-bold">Marque os cantos para calcular a área e o perímetro. Toque no último ponto para conferir.</p>
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                                <button 
-                                  onClick={() => { setIsCalibrating(false); setIsMeasuringArea(false); setActivePoints([]); }}
-                                  className="flex items-center gap-2 bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-slate-400 px-4 py-2 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest border border-white/5"
-                                >
-                                  <X size={14} /> Cancelar
-                                </button>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-
                         <div className="relative p-4 flex flex-col items-center justify-center flex-1 min-h-[500px]">
 
                         <div className="relative group overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -1780,11 +1489,11 @@ export default function App() {
                             <div className="flex flex-col items-center justify-center p-4 bg-slate-50 w-full overflow-hidden">
                               <div className="relative w-full overflow-auto bg-white rounded-xl border border-slate-200" style={{ maxHeight: '75vh' }}>
                                 <div className="flex justify-center min-w-full bg-slate-50/30">
-                                  <div className="relative inline-block">
+                                  <div className="relative inline-flex items-start">
                                     <img 
                                       src={floorPlanImage} 
                                       alt="Planta Baixa" 
-                                      className="max-h-[75vh] w-auto block select-none" 
+                                      className="max-h-[75vh] w-auto block select-none align-top" 
                                       draggable={false}
                                     />
                                   
@@ -1922,6 +1631,50 @@ export default function App() {
                               </div>
                             </div>
                           </div>
+
+                            {/* Measurement Instructions Bar Moved Below */}
+                            <AnimatePresence mode="wait">
+                              {(isCalibrating || isMeasuringArea) && (
+                                <motion.div 
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  className="bg-slate-900 border-t border-white/10 overflow-hidden"
+                                >
+                                  <div className="px-8 py-4 flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-4">
+                                      {isCalibrating ? (
+                                        <>
+                                          <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center">
+                                            <Ruler size={16} className="text-amber-400" />
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <p className="text-[10px] font-black text-white uppercase tracking-widest">Calibração</p>
+                                            <p className="text-xs text-slate-400 font-bold">Clique em dois pontos com distância conhecida para calibrar a escala.</p>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                                            <Square size={16} className="text-blue-400" />
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <p className="text-[10px] font-black text-white uppercase tracking-widest">Medição de Área</p>
+                                            <p className="text-xs text-slate-400 font-bold">Marque os cantos para calcular a área e o perímetro. Toque no último ponto para conferir.</p>
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                    <button 
+                                      onClick={() => { setIsCalibrating(false); setIsMeasuringArea(false); setActivePoints([]); }}
+                                      className="flex items-center gap-2 bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-slate-400 px-4 py-2 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest border border-white/5"
+                                    >
+                                      <X size={14} /> Cancelar
+                                    </button>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
 
                             {/* Results Hub Below Image */}
                             {isMeasuringArea && activePoints.length > 2 && calibrationRatio && (
@@ -2542,7 +2295,21 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {technicians.length === 0 ? (
+                  {!user ? (
+                    <div className="col-span-full bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem] p-20 flex flex-col items-center justify-center text-center">
+                      <div className="w-20 h-20 bg-blue-50 text-blue-200 rounded-full flex items-center justify-center mb-6">
+                        <LogIn size={40} />
+                      </div>
+                      <h4 className="text-xl font-bold text-slate-400">Login Necessário</h4>
+                      <p className="text-sm text-slate-400 mt-2 mb-8">Você precisa entrar com sua conta Google para gerenciar técnicos e sincronizar seus dados na nuvem.</p>
+                      <button 
+                        onClick={handleLogin}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-600/20 active:scale-95 flex items-center gap-2"
+                      >
+                        <LogIn size={18} /> Entrar com Google
+                      </button>
+                    </div>
+                  ) : technicians.length === 0 ? (
                     <div className="col-span-full bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem] p-20 flex flex-col items-center justify-center text-center">
                       <div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center mb-6">
                         <User size={40} />
@@ -2816,15 +2583,15 @@ export default function App() {
                 </div>
                 <div className="flex gap-3">
                   <button 
-                    onClick={() => {
+                    onClick={async () => {
                       const name = prompt('Nome do novo modelo:');
-                      if (name) {
+                      if (name && user) {
                         const newModel: EntryPoleModel = {
                           id: `pole-${Date.now()}`,
                           name,
                           items: []
                         };
-                        setPoleModels(prev => [...prev, newModel]);
+                        await savePoleModel(newModel);
                       }
                     }}
                     className="bg-blue-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center gap-2"
@@ -2848,17 +2615,17 @@ export default function App() {
                         <input 
                           type="text" 
                           value={model.name}
-                          onChange={(e) => {
-                            const updated = poleModels.map(m => m.id === model.id ? { ...m, name: e.target.value } : m);
-                            setPoleModels(updated);
+                          onChange={async (e) => {
+                            const newModel = { ...model, name: e.target.value };
+                            await savePoleModel(newModel);
                           }}
                           className="text-lg font-black text-slate-900 bg-transparent border-none p-0 focus:ring-0"
                         />
                       </div>
                       <button 
-                        onClick={() => {
+                        onClick={async () => {
                           if (confirm('Excluir este modelo?')) {
-                            setPoleModels(prev => prev.filter(m => m.id !== model.id));
+                            await deletePoleModel(model.id);
                             if (selectedPoleModelId === model.id) setSelectedPoleModelId(null);
                           }
                         }}
@@ -2875,12 +2642,9 @@ export default function App() {
                              <input 
                               type="text" 
                               value={item.name}
-                              onChange={(e) => {
-                                const updated = poleModels.map(m => m.id === model.id ? {
-                                  ...m,
-                                  items: m.items.map((it, i) => i === idx ? { ...it, name: e.target.value } : it)
-                                } : m);
-                                setPoleModels(updated);
+                              onChange={async (e) => {
+                                const newItems = model.items.map((it, i) => i === idx ? { ...it, name: e.target.value } : it);
+                                await savePoleModel({ ...model, items: newItems });
                               }}
                               className="w-full text-[11px] font-black text-slate-800 bg-transparent border-none p-0 focus:ring-0 uppercase tracking-tight"
                               placeholder="Nome do item..."
@@ -2891,12 +2655,9 @@ export default function App() {
                                 <input 
                                   type="number"
                                   value={item.quantity}
-                                  onChange={(e) => {
-                                    const updated = poleModels.map(m => m.id === model.id ? {
-                                      ...m,
-                                      items: m.items.map((it, i) => i === idx ? { ...it, quantity: Number(e.target.value) } : it)
-                                    } : m);
-                                    setPoleModels(updated);
+                                  onChange={async (e) => {
+                                    const newItems = model.items.map((it, i) => i === idx ? { ...it, quantity: Number(e.target.value) } : it);
+                                    await savePoleModel({ ...model, items: newItems });
                                   }}
                                   className="w-12 text-[11px] font-bold text-slate-900 bg-transparent border-none p-0 focus:ring-0 mono-value"
                                 />
@@ -2905,12 +2666,9 @@ export default function App() {
                             </div>
                           </div>
                           <button 
-                            onClick={() => {
-                              const updated = poleModels.map(m => m.id === model.id ? {
-                                ...m,
-                                items: m.items.filter((_, i) => i !== idx)
-                              } : m);
-                              setPoleModels(updated);
+                            onClick={async () => {
+                              const newItems = model.items.filter((_, i) => i !== idx);
+                              await savePoleModel({ ...model, items: newItems });
                             }}
                             className="p-2 text-slate-200 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
                           >
@@ -2919,10 +2677,10 @@ export default function App() {
                         </div>
                       ))}
                       <button 
-                        onClick={() => {
+                        onClick={async () => {
                           const newItem = { id: `item-${Date.now()}`, name: 'Novo Componente', quantity: 1, unit: 'un', category: 'device' as const };
-                          const updated = poleModels.map(m => m.id === model.id ? { ...m, items: [...m.items, newItem] } : m);
-                          setPoleModels(updated);
+                          const newItems = [...model.items, newItem];
+                          await savePoleModel({ ...model, items: newItems });
                         }}
                         className="border-2 border-dashed border-slate-200 rounded-2xl p-4 flex items-center justify-center text-slate-400 hover:border-blue-200 hover:text-blue-500 transition-all text-[10px] font-black uppercase tracking-widest gap-2"
                       >

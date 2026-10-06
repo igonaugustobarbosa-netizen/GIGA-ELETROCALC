@@ -1,0 +1,77 @@
+{
+  "entities": {
+    "Project": {
+      "title": "Project",
+      "description": "An electrical project containing rooms and material requirements.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "userId": { "type": "string" },
+        "rooms": { "type": "array" },
+        "customMaterials": { "type": "array" },
+        "selectedPoleModelId": { "type": "string" },
+        "calculateOnlyPole": { "type": "boolean" },
+        "floorPlanImage": { "type": "string" },
+        "calibrationRatio": { "type": "number" },
+        "technician": { "type": "object" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "userId", "createdAt"]
+    },
+    "Technician": {
+      "title": "Technician",
+      "description": "A technical professional registered in the system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "license": { "type": "string" },
+        "phone": { "type": "string" }
+      },
+      "required": ["id", "userId", "name"]
+    },
+    "Catalog": {
+      "title": "Catalog",
+      "description": "User specific prices for materials.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "prices": { "type": "object" }
+      },
+      "required": ["userId", "prices"]
+    },
+    "PoleModel": {
+      "title": "Pole Model",
+      "description": "Custom electrical entry pole models.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "items": { "type": "array" }
+      },
+      "required": ["id", "userId", "name", "items"]
+    }
+  },
+  "firestore": {
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Collection of electrical projects."
+    },
+    "/technicians/{technicianId}": {
+      "schema": "Technician",
+      "description": "Collection of registered technicians."
+    },
+    "/catalogs/{userId}": {
+      "schema": "Catalog",
+      "description": "User specific material pricing catalog."
+    },
+    "/pole_models/{modelId}": {
+      "schema": "PoleModel",
+      "description": "User specific entry pole models."
+    }
+  }
+}

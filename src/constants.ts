@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { EntryPoleModel } from './types';
+
 export const STANDARDS = {
   LIGHTING: {
     INITIAL_VA: 100,
@@ -246,3 +248,428 @@ export const CATALOG_NAMES: Record<string, string> = {
   'fita-autofusao': 'Fita Autofusão',
   'bucha-parafuso': 'Bucha com Parafuso',
 };
+
+export const DEFAULT_POLE_MODELS: EntryPoleModel[] = [
+    {
+      id: 'trifasico-127-220v-100a-subterraneo',
+      name: 'Trifásico 127/220V 100A Subterrâneo',
+      items: [
+        { id: 'caixa-copel-trifasica-sub', name: 'Caixa de Medição Trifásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-tripolar-100', name: 'Disjuntor Tripolar 100A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-cobre-50', name: 'Cabo Cobre 50 mm² (3 Fases + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 4, unit: 'un', category: 'device' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-longa-2', name: 'Curvas Longas 90° 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'trifasico-127-220v-80a-subterraneo',
+      name: 'Trifásico 127/220V 80A Subterrâneo',
+      items: [
+        { id: 'caixa-copel-trifasica-sub', name: 'Caixa de Medição Trifásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-tripolar-80', name: 'Disjuntor Tripolar 80A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-cobre-35', name: 'Cabo Cobre 35 mm² (3 Fases + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 4, unit: 'un', category: 'device' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-longa-2', name: 'Curvas Longas 90° 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'trifasico-127-220v-63a-subterraneo',
+      name: 'Trifásico 127/220V 63A Subterrâneo',
+      items: [
+        { id: 'caixa-copel-trifasica-sub', name: 'Caixa de Medição Trifásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-tripolar-63', name: 'Disjuntor Tripolar 63A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-cobre-25', name: 'Cabo Cobre 25 mm² (3 Fases + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 4, unit: 'un', category: 'device' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-longa-2', name: 'Curvas Longas 90° 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'trifasico-127-220v-50a-subterraneo',
+      name: 'Trifásico 127/220V 50A Subterrâneo',
+      items: [
+        { id: 'caixa-copel-trifasica-sub', name: 'Caixa de Medição Trifásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-tripolar-50', name: 'Disjuntor Tripolar 50A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-cobre-16', name: 'Cabo Cobre 16 mm² (3 Fases + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 4, unit: 'un', category: 'device' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-longa-2', name: 'Curvas Longas 90° 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'bifasico-127-220v-63a-subterraneo',
+      name: 'Bifásico 127/220V 63A Subterrâneo',
+      items: [
+        { id: 'caixa-copel-monofasica-sub', name: 'Caixa de Medição Bifásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-bipolar-63', name: 'Disjuntor Bipolar 63A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-cobre-25', name: 'Cabo Cobre 25 mm² (2 Fases + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 3, unit: 'un', category: 'device' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-longa-2', name: 'Curvas Longas 90° 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'bifasico-127-220v-40a-subterraneo',
+      name: 'Bifásico 127/220V 40A Subterrâneo',
+      items: [
+        { id: 'caixa-copel-monofasica-sub', name: 'Caixa de Medição Bifásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-bipolar-40', name: 'Disjuntor Bipolar 40A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-cobre-10', name: 'Cabo Cobre 10 mm² (Fases + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 3, unit: 'un', category: 'device' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-10', name: 'Cabo Verde 10 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-1.5', name: 'Eletroduto PVC Rígido 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-longa-1.5', name: 'Curvas Longas 90° 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-1.5', name: 'Luvas 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'monofasico-127v-50a-subterraneo',
+      name: 'Monofásico 127V 50A Subterrâneo',
+      items: [
+        { id: 'caixa-copel-monofasica-sub', name: 'Caixa de Medição Monofásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-monopolar-50', name: 'Disjuntor Monopolar 50A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-cobre-16', name: 'Cabo Cobre 16 mm² (Fase + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-10', name: 'Cabo Verde 10 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-1.5', name: 'Eletroduto PVC Rígido 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-longa-1.5', name: 'Curvas Longas 90° 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-1.5', name: 'Luvas 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'monofasico-127v-30a-subterraneo',
+      name: 'Monofásico 127V 30A Subterrâneo',
+      items: [
+        { id: 'caixa-copel-monofasica-sub', name: 'Caixa de Medição Monofásica Padrão Copel (Subterrânea)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-monopolar-30', name: 'Disjuntor Monopolar 30A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-cobre-10', name: 'Cabo Cobre 10 mm² (Fase + Neutro)', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'caixa-passagem-copel', name: 'Caixa de Passagem (Calçada/Padrão Copel)', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'conector-emenda', name: 'Conectores de Emenda', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-10', name: 'Cabo Verde 10 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-1.5', name: 'Eletroduto PVC Rígido 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-longa-1.5', name: 'Curvas Longas 90° 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-1.5', name: 'Luvas 1 1/2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'tampa-reforcada', name: 'Tampa Reforçada para Caixa de Passagem', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'areia-media', name: 'Areia Média (Base e Proteção)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'fita-advertencia', name: 'Fita de Advertência Elétrica', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'monofasico-127v-aereo',
+      name: 'Monofásico 127V 30A Aéreo',
+      items: [
+        { id: 'caixa-copel-monofasica', name: 'Caixa de Medição Monofásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-monopolar-30', name: 'Disjuntor Monopolar 30A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-multiplex-2x10', name: 'Cabo Multiplexado Alumínio 2x10 mm²', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-10', name: 'Cabo Verde 10 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-1.5', name: 'Eletroduto PVC Rígido 1 1/2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'monofasico-127v-40a-aereo',
+      name: 'Monofásico 127V 40A Aéreo',
+      items: [
+        { id: 'caixa-copel-monofasica', name: 'Caixa de Medição Monofásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-monopolar-40', name: 'Disjuntor Monopolar 40A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-multiplex-2x16', name: 'Cabo Multiplexado Alumínio 2x16 mm²', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-10', name: 'Cabo Verde 10 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-1.5', name: 'Eletroduto PVC Rígido 1 1/2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'monofasico-127v-50a-aereo',
+      name: 'Monofásico 127V 50A Aéreo',
+      items: [
+        { id: 'caixa-copel-monofasica', name: 'Caixa de Medição Monofásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-monopolar-50', name: 'Disjuntor Monopolar 50A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-multiplex-2x16', name: 'Cabo Multiplexado Alumínio 2x16 mm²', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-10', name: 'Cabo Verde 10 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-1.5', name: 'Eletroduto PVC Rígido 1 1/2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'bifasico-110-220v-40a-aereo',
+      name: 'Bifásico 110/220V 40A Aéreo',
+      items: [
+        { id: 'caixa-copel-bifasica', name: 'Caixa de Medição Bifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-bipolar-40', name: 'Disjuntor Bipolar 40A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-multiplex-3x16', name: 'Cabo Multiplexado Alumínio 3x16 mm²', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 3, unit: 'un', category: 'device' },
+        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-90-2', name: 'Curvas 90° 2"', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas para Eletroduto 2"', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'bifasico-110-220v-50a-aereo',
+      name: 'Bifásico 110/220V 50A Aéreo',
+      items: [
+        { id: 'caixa-copel-bifasica', name: 'Caixa de Medição Bifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-bipolar-50', name: 'Disjuntor Bipolar 50A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-multiplex-3x25', name: 'Cabo Multiplexado Alumínio 3x25 mm²', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 3, unit: 'un', category: 'device' },
+        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'bifasico-110-220v-63a-aereo',
+      name: 'Bifásico 110/220V 63A Aéreo',
+      items: [
+        { id: 'caixa-copel-bifasica', name: 'Caixa de Medição Bifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-bipolar-63', name: 'Disjuntor Bipolar 63A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-multiplex-3x25', name: 'Cabo Multiplexado Alumínio 3x25 mm²', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 3, unit: 'un', category: 'device' },
+        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'bifasico-110-220v-70a-aereo',
+      name: 'Bifásico 110/220V 70A Aéreo',
+      items: [
+        { id: 'caixa-copel-bifasica', name: 'Caixa de Medição Bifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-bipolar-70', name: 'Disjuntor Bipolar 70A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-multiplex-3x35', name: 'Cabo Multiplexado Alumínio 3x35 mm²', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 3, unit: 'un', category: 'device' },
+        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'trifasico-127-220v-50a-aereo',
+      name: 'Trifásico 127/220V 50A Aéreo',
+      items: [
+        { id: 'caixa-copel-trifasica', name: 'Caixa de Medição Trifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-tripolar-50', name: 'Disjuntor Tripolar 50A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-multiplex-4x25', name: 'Cabo Multiplexado Alumínio 4x25 mm²', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 4, unit: 'un', category: 'device' },
+        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'trifasico-127-220v-63a-aereo',
+      name: 'Trifásico 127/220V 63A Aéreo',
+      items: [
+        { id: 'caixa-copel-trifasica', name: 'Caixa de Medição Trifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-tripolar-63', name: 'Disjuntor Tripolar 63A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-multiplex-4x25', name: 'Cabo Multiplexado Alumínio 4x25 mm²', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 4, unit: 'un', category: 'device' },
+        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'trifasico-127-220v-80a-aereo',
+      name: 'Trifásico 127/220V 80A Aéreo',
+      items: [
+        { id: 'caixa-copel-trifasica', name: 'Caixa de Medição Trifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-tripolar-80', name: 'Disjuntor Tripolar 80A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-multiplex-4x35', name: 'Cabo Multiplexado Alumínio 4x35 mm²', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 4, unit: 'un', category: 'device' },
+        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    },
+    {
+      id: 'trifasico-127-220v-100a-aereo',
+      name: 'Trifásico 127/220V 100A Aéreo',
+      items: [
+        { id: 'caixa-copel-trifasica', name: 'Caixa de Medição Trifásica Padrão Copel', quantity: 1, unit: 'un', category: 'box' },
+        { id: 'breaker-tripolar-100', name: 'Disjuntor Tripolar 100A', quantity: 1, unit: 'un', category: 'breaker' },
+        { id: 'cabo-multiplex-4x50', name: 'Cabo Multiplexado Alumínio 4x50 mm²', quantity: 20, unit: 'm', category: 'cable' },
+        { id: 'conector-ipc', name: 'Conectores Perfurantes (IPC)', quantity: 4, unit: 'un', category: 'device' },
+        { id: 'parafuso-olhal', name: 'Parafuso Olhal (Ancoragem)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'roldana-isolador', name: 'Roldanas', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'cordoalha-aco', name: 'Cordoalha de Aço Galvanizado', quantity: 5, unit: 'm', category: 'cable' },
+        { id: 'haste-copel-2.4', name: 'Haste de Aterramento 2,4 m', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'cabo-aterro-16', name: 'Cabo Verde 16 mm²', quantity: 10, unit: 'm', category: 'cable' },
+        { id: 'conector-grampo-u', name: 'Conector de Aterramento (Grampo)', quantity: 1, unit: 'un', category: 'device' },
+        { id: 'eletroduto-pvc-rigid-2', name: 'Eletroduto PVC Rígido 2" (Barras)', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'curva-pvc-90-2', name: 'Curvas 90°', quantity: 2, unit: 'un', category: 'conduit' },
+        { id: 'luva-eletroduto-2', name: 'Luvas', quantity: 3, unit: 'un', category: 'conduit' },
+        { id: 'bucha-arruela-kit', name: 'Bucha + Arruela', quantity: 2, unit: 'un', category: 'device' },
+        { id: 'abracadeira-tipo-d', name: 'Abraçadeiras', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'parafuso-bucha-kit', name: 'Parafusos com Bucha', quantity: 6, unit: 'un', category: 'device' },
+        { id: 'poste-concreto-8m', name: 'Poste de Concreto 7 a 9 m', quantity: 1, unit: 'un', category: 'device' }
+      ]
+    }
+];
+

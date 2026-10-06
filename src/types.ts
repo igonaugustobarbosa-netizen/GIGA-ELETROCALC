@@ -60,6 +60,7 @@ export interface TechnicianInfo {
 export interface Project {
   id: string;
   name: string;
+  userId: string;
   rooms: Room[];
   customMaterials: ProjectMaterial[];
   selectedPoleModelId: string | null;
