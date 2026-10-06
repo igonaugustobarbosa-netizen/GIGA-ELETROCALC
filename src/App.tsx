@@ -108,6 +108,35 @@ export default function App() {
   const [isAddingTechnician, setIsAddingTechnician] = useState(false);
   const [editingTechId, setEditingTechId] = useState<string | null>(null);
   const [currentTech, setCurrentTech] = useState<TechnicianInfo>({ id: '', name: '', license: '', phone: '' });
+  const [technician, setTechnician] = useState<TechnicianInfo>({ id: '', name: '', license: '', phone: '' });
+  const [technicians, setTechnicians] = useState<TechnicianInfo[]>([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'rooms' | 'materials' | 'catalog' | 'technicians' | 'pole_models'>('rooms');
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [editingPoleModelId, setEditingPoleModelId] = useState<string | null>(null);
+  const [showBudgetSelectionModal, setShowBudgetSelectionModal] = useState<{ type: 'simple' | 'detailed', open: boolean }>({ type: 'simple', open: false });
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+  const [techToDelete, setTechToDelete] = useState<TechnicianInfo | null>(null);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingProjectName, setEditingProjectName] = useState("");
+  const [catalog, setCatalog] = useState<Record<string, number>>(DEFAULT_CATALOG);
+  const [selectedPoleModelId, setSelectedPoleModelId] = useState<string | null>(null);
+  const [floorPlanImage, setFloorPlanImage] = useState<string | undefined>(undefined);
+  const [calibrationRatio, setCalibrationRatio] = useState<number | undefined>(undefined);
+  const [calibrationInput, setCalibrationInput] = useState<string>("5");
+  const [showCalibrationInput, setShowCalibrationInput] = useState(false);
+  const [isCalibrating, setIsCalibrating] = useState(false);
+  const [isMeasuringArea, setIsMeasuringArea] = useState(false);
+  const [activePoints, setActivePoints] = useState<{x: number, y: number}[]>([]);
+  const [measurementResult, setMeasurementResult] = useState<{ area: number; perimeter: number } | null>(null);
+  const [serviceEntranceLength, setServiceEntranceLength] = useState<number>(10);
+  const [serviceEntranceGauge, setServiceEntranceGauge] = useState<number>(16);
+  const [isAddingCatalogItem, setIsAddingCatalogItem] = useState(false);
+  const [newCatalogItem, setNewCatalogItem] = useState({ name: '', category: 'cable', price: 0 });
+  const [calculateOnlyPole, setCalculateOnlyPole] = useState(false);
+  const [poleModels, setPoleModels] = useState<EntryPoleModel[]>([]);
+  const [isManagingCatalog, setIsManagingCatalog] = useState(false);
+  const [isManagingPoleModels, setIsManagingPoleModels] = useState(false);
 
   const handleLogin = async () => {
     try {
@@ -139,7 +168,14 @@ export default function App() {
   // Sync Projects
   useEffect(() => {
     if (!user) {
-      setProjects([]);
+      const local = localStorage.getItem('eletrocalc_projects');
+      if (local) {
+        try {
+          setProjects(JSON.parse(local));
+        } catch (e) {
+          console.error("Erro ao carregar projetos locais:", e);
+        }
+      }
       return;
     }
 
@@ -157,7 +193,14 @@ export default function App() {
   // Sync Technicians
   useEffect(() => {
     if (!user) {
-      setTechnicians([]);
+      const local = localStorage.getItem('eletrocalc_technicians');
+      if (local) {
+        try {
+          setTechnicians(JSON.parse(local));
+        } catch (e) {
+          console.error("Erro ao carregar técnicos locais:", e);
+        }
+      }
       return;
     }
 
@@ -175,7 +218,16 @@ export default function App() {
   // Sync Catalog
   useEffect(() => {
     if (!user) {
-      setCatalog(DEFAULT_CATALOG);
+      const local = localStorage.getItem('eletrocalc_catalog');
+      if (local) {
+        try {
+          setCatalog({ ...DEFAULT_CATALOG, ...JSON.parse(local) });
+        } catch (e) {
+          console.error("Erro ao carregar catálogo local:", e);
+        }
+      } else {
+        setCatalog(DEFAULT_CATALOG);
+      }
       return;
     }
 
@@ -309,11 +361,6 @@ export default function App() {
   };
 
   const saveTechnician = async () => {
-    if (!user) {
-      alert('Você precisa estar logado para cadastrar técnicos.');
-      return;
-    }
-    
     if (!currentTech.name) {
       alert('Por favor, informe o nome do técnico.');
       return;
@@ -323,37 +370,59 @@ export default function App() {
     const techData = { 
       ...currentTech, 
       id: techId,
-      userId: user.uid 
+      userId: user?.uid || 'local-user' 
     };
 
-    try {
-      await setDoc(doc(db, 'technicians', techId), techData);
-      
-      if (technician.id === editingTechId || !technician.id) {
-        setTechnician(techData);
-        saveProject(undefined, undefined, undefined, undefined, undefined, undefined, techData);
-      }
-      
-      setIsAddingTechnician(false);
-      setEditingTechId(null);
-      setCurrentTech({ id: '', name: '', license: '', phone: '' });
-      alert('Técnico salvo com sucesso!');
-    } catch (error) {
-      console.error("Erro ao salvar técnico:", error);
-      handleFirestoreError(error, OperationType.WRITE, `technicians/${techId}`);
+    // Update local state and storage
+    let updatedTechs: TechnicianInfo[];
+    if (editingTechId) {
+      updatedTechs = technicians.map(t => t.id === editingTechId ? techData : t);
+    } else {
+      updatedTechs = [...technicians, techData];
     }
-  };
-  const deleteTechnician = async (tech: TechnicianInfo) => {
-    try {
-      await deleteDoc(doc(db, 'technicians', tech.id));
-      if (technician.id === tech.id) {
-        const empty = { id: '', name: '', license: '', phone: '' };
-        setTechnician(empty);
-        saveProject(undefined, undefined, undefined, undefined, undefined, undefined, empty);
+    setTechnicians(updatedTechs);
+    localStorage.setItem('eletrocalc_technicians', JSON.stringify(updatedTechs));
+
+    if (technician.id === editingTechId || !technician.id) {
+      setTechnician(techData);
+      saveProject(undefined, undefined, undefined, undefined, undefined, undefined, techData);
+    }
+
+    if (user) {
+      try {
+        await setDoc(doc(db, 'technicians', techId), techData);
+        alert('Técnico salvo na nuvem com sucesso!');
+      } catch (error) {
+        console.error("Erro ao salvar técnico no Firestore:", error);
+        handleFirestoreError(error, OperationType.WRITE, `technicians/${techId}`);
       }
-      setTechToDelete(null);
-    } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, `technicians/${tech.id}`);
+    } else {
+      alert('Técnico salvo localmente com sucesso!');
+    }
+
+    setIsAddingTechnician(false);
+    setEditingTechId(null);
+    setCurrentTech({ id: '', name: '', license: '', phone: '' });
+  };
+
+  const deleteTechnician = async (tech: TechnicianInfo) => {
+    const updatedTechs = technicians.filter(t => t.id !== tech.id);
+    setTechnicians(updatedTechs);
+    localStorage.setItem('eletrocalc_technicians', JSON.stringify(updatedTechs));
+
+    if (technician.id === tech.id) {
+      const empty = { id: '', name: '', license: '', phone: '' };
+      setTechnician(empty);
+      saveProject(undefined, undefined, undefined, undefined, undefined, undefined, empty);
+    }
+    setTechToDelete(null);
+
+    if (user) {
+      try {
+        await deleteDoc(doc(db, 'technicians', tech.id));
+      } catch (e) {
+        handleFirestoreError(e, OperationType.DELETE, `technicians/${tech.id}`);
+      }
     }
   };
 
@@ -374,36 +443,7 @@ export default function App() {
       handleFirestoreError(error, OperationType.DELETE, `pole_models/${modelId}`);
     }
   };
-  const [technician, setTechnician] = useState<TechnicianInfo>({ id: '', name: '', license: '', phone: '' });
-  const [technicians, setTechnicians] = useState<TechnicianInfo[]>([]);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'rooms' | 'materials' | 'catalog' | 'technicians' | 'pole_models'>('rooms');
-  const [catalogSearch, setCatalogSearch] = useState('');
-  const [editingPoleModelId, setEditingPoleModelId] = useState<string | null>(null);
-  const [showBudgetSelectionModal, setShowBudgetSelectionModal] = useState<{ type: 'simple' | 'detailed', open: boolean }>({ type: 'simple', open: false });
-  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
-  const [techToDelete, setTechToDelete] = useState<TechnicianInfo | null>(null);
-  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
-  const [editingProjectName, setEditingProjectName] = useState("");
-  const [catalog, setCatalog] = useState<Record<string, number>>(DEFAULT_CATALOG);
-  const [selectedPoleModelId, setSelectedPoleModelId] = useState<string | null>(null);
-  const [floorPlanImage, setFloorPlanImage] = useState<string | undefined>(undefined);
-  const [calibrationRatio, setCalibrationRatio] = useState<number | undefined>(undefined);
-  const [calibrationInput, setCalibrationInput] = useState<string>("5");
-  const [showCalibrationInput, setShowCalibrationInput] = useState(false);
-  const [isCalibrating, setIsCalibrating] = useState(false);
-  const [isMeasuringArea, setIsMeasuringArea] = useState(false);
-  const [activePoints, setActivePoints] = useState<{x: number, y: number}[]>([]);
-  const [measurementResult, setMeasurementResult] = useState<{ area: number; perimeter: number } | null>(null);
 
-  const [serviceEntranceLength, setServiceEntranceLength] = useState<number>(10);
-  const [serviceEntranceGauge, setServiceEntranceGauge] = useState<number>(16);
-  const [isAddingCatalogItem, setIsAddingCatalogItem] = useState(false);
-  const [newCatalogItem, setNewCatalogItem] = useState({ name: '', category: 'cable', price: 0 });
-  const [calculateOnlyPole, setCalculateOnlyPole] = useState(false);
-  const [poleModels, setPoleModels] = useState<EntryPoleModel[]>([]);
-  const [isManagingCatalog, setIsManagingCatalog] = useState(false);
-  const [isManagingPoleModels, setIsManagingPoleModels] = useState(false);
 
   const categories = [
     { id: 'cable', name: 'Condutores', pattern: 'cable' },
@@ -448,7 +488,7 @@ export default function App() {
     updatedSeLength?: number, 
     updatedSeGauge?: number
   ) => {
-    if (!user || !currentProjectId) return;
+    if (!currentProjectId) return;
 
     const roomsToSave = updatedRooms || rooms;
     const customToSave = updatedCustom || customMaterials;
@@ -473,21 +513,26 @@ export default function App() {
       updatedAt: new Date().toISOString()
     };
 
-    try {
-      await updateDoc(doc(db, 'projects', currentProjectId), projectData);
-    } catch (e) {
-      handleFirestoreError(e, OperationType.WRITE, `projects/${currentProjectId}`);
+    // Always update local state for immediate feedback
+    const updatedProjects = projects.map(p => p.id === currentProjectId ? { ...p, ...projectData } : p);
+    setProjects(updatedProjects);
+    localStorage.setItem('eletrocalc_projects', JSON.stringify(updatedProjects));
+
+    if (user) {
+      try {
+        await updateDoc(doc(db, 'projects', currentProjectId), projectData);
+      } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, `projects/${currentProjectId}`);
+      }
     }
   };
 
   const createNewProject = async () => {
-    if (!user) return;
-    
     const projectId = Math.random().toString(36).substr(2, 9);
     const newProject: Project = {
       id: projectId,
       name: `Projeto ${projects.length + 1}`,
-      userId: user.uid,
+      userId: user?.uid || 'local-user',
       rooms: [],
       customMaterials: [],
       selectedPoleModelId: 'default-trifasico',
@@ -498,39 +543,59 @@ export default function App() {
       updatedAt: new Date().toISOString()
     };
 
-    try {
-      await setDoc(doc(db, 'projects', projectId), newProject);
-      setCurrentProjectId(projectId);
-      setRooms([]);
-      setCustomMaterials([]);
-      setSelectedPoleModelId('default-trifasico');
-      setFloorPlanImage(undefined);
-      setCalibrationRatio(undefined);
-    } catch (e) {
-      handleFirestoreError(e, OperationType.CREATE, `projects/${projectId}`);
+    const updatedProjects = [newProject, ...projects];
+    setProjects(updatedProjects);
+    localStorage.setItem('eletrocalc_projects', JSON.stringify(updatedProjects));
+    setCurrentProjectId(projectId);
+    setRooms([]);
+    setCustomMaterials([]);
+    setSelectedPoleModelId('default-trifasico');
+    setFloorPlanImage(undefined);
+    setCalibrationRatio(undefined);
+    setTechnician({ id: '', name: '', license: '', phone: '' });
+
+    if (user) {
+      try {
+        await setDoc(doc(db, 'projects', projectId), newProject);
+      } catch (e) {
+        handleFirestoreError(e, OperationType.CREATE, `projects/${projectId}`);
+      }
     }
   };
 
   const deleteProject = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, 'projects', id));
-      if (currentProjectId === id) {
-        setCurrentProjectId(null);
-        setRooms([]);
-        setCustomMaterials([]);
+    const updatedProjects = projects.filter(p => p.id !== id);
+    setProjects(updatedProjects);
+    localStorage.setItem('eletrocalc_projects', JSON.stringify(updatedProjects));
+
+    if (currentProjectId === id) {
+      setCurrentProjectId(null);
+      setRooms([]);
+      setCustomMaterials([]);
+    }
+    setProjectToDelete(null);
+
+    if (user) {
+      try {
+        await deleteDoc(doc(db, 'projects', id));
+      } catch (e) {
+        handleFirestoreError(e, OperationType.DELETE, `projects/${id}`);
       }
-      setProjectToDelete(null);
-    } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, `projects/${id}`);
     }
   };
 
   const renameProject = async (id: string, newName: string) => {
-    try {
-      await updateDoc(doc(db, 'projects', id), { name: newName });
-      setEditingProjectId(null);
-    } catch (e) {
-      handleFirestoreError(e, OperationType.WRITE, `projects/${id}`);
+    const updatedProjects = projects.map(p => p.id === id ? { ...p, name: newName } : p);
+    setProjects(updatedProjects);
+    localStorage.setItem('eletrocalc_projects', JSON.stringify(updatedProjects));
+    setEditingProjectId(null);
+
+    if (user) {
+      try {
+        await updateDoc(doc(db, 'projects', id), { name: newName });
+      } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, `projects/${id}`);
+      }
     }
   };
 
@@ -762,6 +827,7 @@ export default function App() {
 
   const saveCatalog = async (newCatalog: Record<string, number>) => {
     setCatalog(newCatalog);
+    localStorage.setItem('eletrocalc_catalog', JSON.stringify(newCatalog));
     if (user) {
       try {
         await setDoc(doc(db, 'catalogs', user.uid), { 
@@ -775,21 +841,28 @@ export default function App() {
   };
 
   const addCatalogItem = async () => {
-    if (!newCatalogItem.name || !user) return;
+    if (!newCatalogItem.name) return;
     const prefix = newCatalogItem.category === 'other' ? 'custom' : newCatalogItem.category;
     const id = `${prefix}-${Date.now()}`;
     const updated = { ...catalog, [id]: newCatalogItem.price };
     
     setCatalog(updated);
-    try {
-      await setDoc(doc(db, 'catalogs', user.uid), { 
-        userId: user.uid, 
-        prices: updated 
-      });
+    localStorage.setItem('eletrocalc_catalog', JSON.stringify(updated));
+
+    if (user) {
+      try {
+        await setDoc(doc(db, 'catalogs', user.uid), { 
+          userId: user.uid, 
+          prices: updated 
+        });
+        setIsAddingCatalogItem(false);
+        setNewCatalogItem({ name: '', category: 'cable', price: 0 });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, `catalogs/${user.uid}`);
+      }
+    } else {
       setIsAddingCatalogItem(false);
       setNewCatalogItem({ name: '', category: 'cable', price: 0 });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `catalogs/${user.uid}`);
     }
   };
 
@@ -1157,7 +1230,7 @@ export default function App() {
                 onClick={handleLogin}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 active:scale-95 flex items-center gap-2"
               >
-                <LogIn size={16} /> Entrar com Google
+                <LogIn size={16} className="shrink-0" /> <span className="hidden sm:inline">Entrar com Google</span><span className="sm:hidden">Login</span>
               </button>
             ) : (
               <div className="flex items-center gap-4">
@@ -1562,17 +1635,17 @@ export default function App() {
                               </div>
                             </div>
                           ) : (
-                            <div className="flex flex-col items-center justify-center p-4 bg-slate-50 w-full overflow-hidden">
-                              <div className="relative w-full overflow-auto bg-white rounded-xl border border-slate-200" style={{ maxHeight: '75vh' }}>
-                                <div className="flex justify-center min-w-full bg-slate-50/30">
-                                  <div className="relative inline-flex items-start">
-                                    <img 
-                                      src={floorPlanImage} 
-                                      alt="Planta Baixa" 
-                                      className="max-h-[75vh] w-auto block select-none align-top" 
-                                      draggable={false}
-                                    />
-                                  
+                            <div className="flex-1 flex flex-col min-h-0 bg-slate-50">
+                              {/* Scrollable Image Area */}
+                              <div className="flex-1 overflow-auto relative p-4 flex flex-col items-center">
+                                <div className="relative inline-flex items-start bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                  <img 
+                                    src={floorPlanImage} 
+                                    alt="Planta Baixa" 
+                                    className="max-h-[85vh] w-auto block select-none align-top" 
+                                    draggable={false}
+                                  />
+                                
                                   {/* Interaction Overlay */}
                                   <div 
                                     className={cn(
@@ -1601,232 +1674,233 @@ export default function App() {
                                     }}
                                   />
 
-                              {/* Calibration Input Modal (Small and focused) */}
-                              <AnimatePresence>
-                                {showCalibrationInput && (
-                                  <motion.div 
-                                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                                    className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
+                                  {/* SVG Overlay for Drawing */}
+                                  <svg 
+                                    className="absolute inset-0 w-full h-full pointer-events-none z-10"
                                   >
-                                    <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-100 max-w-xs w-full">
-                                      <h6 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center gap-2">
-                                        <Ruler size={14} className="text-amber-500" /> Definir Escala
-                                      </h6>
-                                      <p className="text-sm text-slate-600 font-medium leading-relaxed mb-6">
-                                        Informe a distância real (em metros) entre os dois pontos marcados:
-                                      </p>
-                                      <div className="relative mb-6">
-                                        <input 
-                                          type="number" 
-                                          value={calibrationInput}
-                                          onChange={(e) => setCalibrationInput(e.target.value)}
-                                          className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-slate-900 font-black text-xl focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all"
-                                          placeholder="Ex: 5"
-                                          autoFocus
+                                    {/* Drawing Calibration Line */}
+                                    {(isCalibrating || showCalibrationInput) && activePoints.length > 0 && (
+                                      <>
+                                        {activePoints.map((p, i) => (
+                                          <circle key={i} cx={p.x} cy={p.y} r="8" fill="#FBBF24" stroke="white" strokeWidth="2" />
+                                        ))}
+                                        {activePoints.length === 2 && (
+                                          <line 
+                                            x1={activePoints[0].x} y1={activePoints[0].y} 
+                                            x2={activePoints[1].x} y2={activePoints[1].y} 
+                                            stroke="#FBBF24" strokeWidth="3" strokeDasharray="6 4"
+                                          />
+                                        )}
+                                      </>
+                                    )}
+
+                                    {/* Drawing Area Polygon */}
+                                    {isMeasuringArea && activePoints.length > 0 && (
+                                      <>
+                                        <polyline 
+                                          points={activePoints.map(p => `${p.x},${p.y}`).join(' ')}
+                                          fill="rgba(59, 130, 246, 0.2)"
+                                          stroke="#3B82F6"
+                                          strokeWidth="3"
                                         />
-                                        <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-black">METROS</span>
+                                        {activePoints.map((p, i) => (
+                                          <circle key={i} cx={p.x} cy={p.y} r="8" fill="#3B82F6" stroke="white" strokeWidth="2" />
+                                        ))}
+                                        {activePoints.length > 2 && (
+                                          <line 
+                                            x1={activePoints[activePoints.length-1].x} y1={activePoints[activePoints.length-1].y}
+                                            x2={activePoints[0].x} y2={activePoints[0].y}
+                                            stroke="#3B82F6" strokeWidth="2" strokeDasharray="6 6"
+                                          />
+                                        )}
+                                      </>
+                                    )}
+                                  </svg>
+
+                                  {/* Calibration Input Modal (Small and focused) - Now inside the relative area but centered */}
+                                  <AnimatePresence>
+                                    {showCalibrationInput && (
+                                      <motion.div 
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.9 }}
+                                        className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+                                      >
+                                        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-100 max-w-xs w-full">
+                                          <h6 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center gap-2">
+                                            <Ruler size={14} className="text-amber-500" /> Definir Escala
+                                          </h6>
+                                          <p className="text-sm text-slate-600 font-medium leading-relaxed mb-6">
+                                            Distância real (metros) entre os pontos:
+                                          </p>
+                                          <div className="relative mb-6">
+                                            <input 
+                                              type="number" 
+                                              value={calibrationInput}
+                                              onChange={(e) => setCalibrationInput(e.target.value)}
+                                              className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-slate-900 font-black text-xl focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all"
+                                              placeholder="Ex: 5"
+                                              autoFocus
+                                            />
+                                            <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-black">M</span>
+                                          </div>
+                                          <div className="flex gap-3">
+                                            <button 
+                                              onClick={() => {
+                                                const realDist = parseFloat(calibrationInput);
+                                                if (realDist > 0 && activePoints.length === 2) {
+                                                  const dist = Math.sqrt(Math.pow(activePoints[0].x - activePoints[1].x, 2) + Math.pow(activePoints[0].y - activePoints[1].y, 2));
+                                                  const ratio = dist / realDist;
+                                                  setCalibrationRatio(ratio);
+                                                  saveProject(undefined, undefined, undefined, undefined, undefined, ratio);
+                                                }
+                                                setShowCalibrationInput(false);
+                                                setIsCalibrating(false);
+                                                setActivePoints([]);
+                                              }}
+                                              className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl"
+                                            >
+                                              Confirmar
+                                            </button>
+                                            <button 
+                                              onClick={() => {
+                                                setShowCalibrationInput(false);
+                                                setIsCalibrating(false);
+                                                setActivePoints([]);
+                                              }}
+                                              className="px-6 bg-slate-100 text-slate-400 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                            >
+                                              Sair
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </div>
+                              </div>
+
+                              {/* Measurement Footer (Instructions & Results) */}
+                              <div className="bg-slate-900 shrink-0 border-t border-white/10 shadow-2xl z-20">
+                                <AnimatePresence mode="wait">
+                                  {(isCalibrating || isMeasuringArea) && (
+                                    <motion.div 
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      className="overflow-hidden border-b border-white/5"
+                                    >
+                                      <div className="px-8 py-4 flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-4">
+                                          {isCalibrating ? (
+                                            <>
+                                              <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center">
+                                                <Ruler size={16} className="text-amber-400" />
+                                              </div>
+                                              <div className="flex flex-col">
+                                                <p className="text-[10px] font-black text-white uppercase tracking-widest leading-none mb-1">Calibração</p>
+                                                <p className="text-xs text-slate-400 font-bold">Marque dois pontos conhecidos na planta.</p>
+                                              </div>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                                                <Square size={16} className="text-blue-400" />
+                                              </div>
+                                              <div className="flex flex-col">
+                                                <p className="text-[10px] font-black text-white uppercase tracking-widest leading-none mb-1">Medição</p>
+                                                <p className="text-xs text-slate-400 font-bold">Clique nos cantos para calcular área/perímetro.</p>
+                                              </div>
+                                            </>
+                                          )}
+                                        </div>
+                                        <button 
+                                          onClick={() => { setIsCalibrating(false); setIsMeasuringArea(false); setActivePoints([]); }}
+                                          className="flex items-center gap-2 bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-slate-400 px-4 py-2 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest border border-white/5"
+                                        >
+                                          <X size={14} /> Cancelar
+                                        </button>
                                       </div>
-                                      <div className="flex gap-3">
-                                        <button 
-                                          onClick={() => {
-                                            const realDist = parseFloat(calibrationInput);
-                                            if (realDist > 0 && activePoints.length === 2) {
-                                              const dist = Math.sqrt(Math.pow(activePoints[0].x - activePoints[1].x, 2) + Math.pow(activePoints[0].y - activePoints[1].y, 2));
-                                              const ratio = dist / realDist;
-                                              setCalibrationRatio(ratio);
-                                              saveProject(undefined, undefined, undefined, undefined, undefined, ratio);
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+
+                                {/* Results Hub */}
+                                {isMeasuringArea && activePoints.length > 2 && calibrationRatio && (
+                                  <div className="px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+                                    <div className="flex items-center gap-8">
+                                      <div className="flex flex-col">
+                                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1">Área Estimada</p>
+                                        <p className="text-2xl font-black text-white mono-value leading-none">
+                                          {(() => {
+                                            let area = 0;
+                                            for (let i = 0; i < activePoints.length; i++) {
+                                              const p1 = activePoints[i];
+                                              const p2 = activePoints[(i + 1) % activePoints.length];
+                                              area += (p1.x * p2.y) - (p2.x * p1.y);
                                             }
-                                            setShowCalibrationInput(false);
-                                            setIsCalibrating(false);
-                                            setActivePoints([]);
-                                          }}
-                                          className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all"
-                                        >
-                                          Confirmar
-                                        </button>
-                                        <button 
-                                          onClick={() => {
-                                            setShowCalibrationInput(false);
-                                            setIsCalibrating(false);
-                                            setActivePoints([]);
-                                          }}
-                                          className="px-6 bg-slate-100 text-slate-400 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
-                                        >
-                                          Sair
-                                        </button>
+                                            const realArea = Math.abs(area / 2) / Math.pow(calibrationRatio, 2);
+                                            return realArea.toFixed(2);
+                                          })()} <span className="text-slate-500 text-sm font-normal uppercase ml-1">m²</span>
+                                        </p>
+                                      </div>
+                                      <div className="w-px h-10 bg-white/10" />
+                                      <div className="flex flex-col">
+                                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1">Perímetro</p>
+                                        <p className="text-2xl font-black text-white mono-value leading-none">
+                                          {(() => {
+                                            let perimeter = 0;
+                                            for (let i = 0; i < activePoints.length; i++) {
+                                              const p1 = activePoints[i];
+                                              const p2 = activePoints[(i + 1) % activePoints.length];
+                                              perimeter += Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+                                            }
+                                            const realPerimeter = perimeter / calibrationRatio;
+                                            return realPerimeter.toFixed(2);
+                                          })()} <span className="text-slate-500 text-sm font-normal uppercase ml-1">m</span>
+                                        </p>
                                       </div>
                                     </div>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                              
-                              {/* SVG Overlay for Drawing */}
-                              <svg 
-                                className="absolute inset-0 w-full h-full pointer-events-none z-10"
-                              >
-                                {/* Drawing Calibration Line */}
-                                {(isCalibrating || showCalibrationInput) && activePoints.length > 0 && (
-                                  <>
-                                    {activePoints.map((p, i) => (
-                                      <circle key={i} cx={p.x} cy={p.y} r="8" fill="#FBBF24" stroke="white" strokeWidth="2" />
-                                    ))}
-                                    {activePoints.length === 2 && (
-                                      <line 
-                                        x1={activePoints[0].x} y1={activePoints[0].y} 
-                                        x2={activePoints[1].x} y2={activePoints[1].y} 
-                                        stroke="#FBBF24" strokeWidth="3" strokeDasharray="6 4"
-                                      />
-                                    )}
-                                  </>
-                                )}
 
-                                {/* Drawing Area Polygon */}
-                                {isMeasuringArea && activePoints.length > 0 && (
-                                  <>
-                                    <polyline 
-                                      points={activePoints.map(p => `${p.x},${p.y}`).join(' ')}
-                                      fill="rgba(59, 130, 246, 0.2)"
-                                      stroke="#3B82F6"
-                                      strokeWidth="3"
-                                    />
-                                    {activePoints.map((p, i) => (
-                                      <circle key={i} cx={p.x} cy={p.y} r="8" fill="#3B82F6" stroke="white" strokeWidth="2" />
-                                    ))}
-                                    {activePoints.length > 2 && (
-                                      <line 
-                                        x1={activePoints[activePoints.length-1].x} y1={activePoints[activePoints.length-1].y}
-                                        x2={activePoints[0].x} y2={activePoints[0].y}
-                                        stroke="#3B82F6" strokeWidth="2" strokeDasharray="6 6"
-                                      />
-                                    )}
-                                  </>
+                                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                                      <button 
+                                        onClick={() => setActivePoints([])}
+                                        className="flex-1 sm:flex-none px-6 py-4 text-slate-400 font-black text-[10px] uppercase tracking-widest hover:text-white transition-colors border border-white/5 rounded-2xl"
+                                      >
+                                        Limpar
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          let area = 0;
+                                          for (let i = 0; i < activePoints.length; i++) {
+                                            const p1 = activePoints[i];
+                                            const p2 = activePoints[(i + 1) % activePoints.length];
+                                            area += (p1.x * p2.y) - (p2.x * p1.y);
+                                          }
+                                          const realArea = parseFloat(Math.abs(area / 2 / Math.pow(calibrationRatio, 2)).toFixed(2));
+                                          
+                                          let perimeter = 0;
+                                          for (let i = 0; i < activePoints.length; i++) {
+                                            const p1 = activePoints[i];
+                                            const p2 = activePoints[(i + 1) % activePoints.length];
+                                            perimeter += Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+                                          }
+                                          const realPerimeter = parseFloat((perimeter / calibrationRatio).toFixed(2));
+                                          const specs = calculateRoomRequirements(currentRoom.type || 'living', realArea, realPerimeter);
+                                          setCurrentRoom(prev => ({ ...prev, area: realArea, perimeter: realPerimeter, lights: specs.lights, tugs: specs.tugs }));
+                                          setIsAddingRoom(true);
+                                          setIsMeasuringArea(false);
+                                          setActivePoints([]);
+                                        }}
+                                        className="flex-1 sm:flex-none bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-500 transition-all flex items-center justify-center gap-3 shadow-xl shadow-blue-600/20"
+                                      >
+                                        <Plus size={16} /> Usar na Criação
+                                      </button>
+                                    </div>
+                                  </div>
                                 )}
-                              </svg>
                               </div>
                             </div>
-                          </div>
-
-                            {/* Measurement Instructions Bar Moved Below */}
-                            <AnimatePresence mode="wait">
-                              {(isCalibrating || isMeasuringArea) && (
-                                <motion.div 
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: 'auto', opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  className="bg-slate-900 border-t border-white/10 overflow-hidden"
-                                >
-                                  <div className="px-8 py-4 flex items-center justify-between gap-4">
-                                    <div className="flex items-center gap-4">
-                                      {isCalibrating ? (
-                                        <>
-                                          <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center">
-                                            <Ruler size={16} className="text-amber-400" />
-                                          </div>
-                                          <div className="flex flex-col">
-                                            <p className="text-[10px] font-black text-white uppercase tracking-widest">Calibração</p>
-                                            <p className="text-xs text-slate-400 font-bold">Clique em dois pontos com distância conhecida para calibrar a escala.</p>
-                                          </div>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                                            <Square size={16} className="text-blue-400" />
-                                          </div>
-                                          <div className="flex flex-col">
-                                            <p className="text-[10px] font-black text-white uppercase tracking-widest">Medição de Área</p>
-                                            <p className="text-xs text-slate-400 font-bold">Marque os cantos para calcular a área e o perímetro. Toque no último ponto para conferir.</p>
-                                          </div>
-                                        </>
-                                      )}
-                                    </div>
-                                    <button 
-                                      onClick={() => { setIsCalibrating(false); setIsMeasuringArea(false); setActivePoints([]); }}
-                                      className="flex items-center gap-2 bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-slate-400 px-4 py-2 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest border border-white/5"
-                                    >
-                                      <X size={14} /> Cancelar
-                                    </button>
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-
-                            {/* Results Hub Below Image */}
-                            {isMeasuringArea && activePoints.length > 2 && calibrationRatio && (
-                              <div className="bg-slate-900 px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-6 border-t border-white/10">
-                                <div className="flex items-center gap-8">
-                                  <div className="flex flex-col">
-                                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1">Área Estimada</p>
-                                    <p className="text-2xl font-black text-white mono-value">
-                                      {(() => {
-                                        let area = 0;
-                                        for (let i = 0; i < activePoints.length; i++) {
-                                          const p1 = activePoints[i];
-                                          const p2 = activePoints[(i + 1) % activePoints.length];
-                                          area += (p1.x * p2.y) - (p2.x * p1.y);
-                                        }
-                                        const realArea = Math.abs(area / 2) / Math.pow(calibrationRatio, 2);
-                                        return realArea.toFixed(2);
-                                      })()} <span className="text-slate-500 text-sm">m²</span>
-                                    </p>
-                                  </div>
-                                  <div className="w-px h-10 bg-white/10" />
-                                  <div className="flex flex-col">
-                                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1">Perímetro</p>
-                                    <p className="text-2xl font-black text-white mono-value">
-                                      {(() => {
-                                        let perimeter = 0;
-                                        for (let i = 0; i < activePoints.length; i++) {
-                                          const p1 = activePoints[i];
-                                          const p2 = activePoints[(i + 1) % activePoints.length];
-                                          perimeter += Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
-                                        }
-                                        const realPerimeter = perimeter / calibrationRatio;
-                                        return realPerimeter.toFixed(2);
-                                      })()} <span className="text-slate-500 text-sm">m</span>
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-4 w-full sm:w-auto">
-                                  <button 
-                                    onClick={() => setActivePoints([])}
-                                    className="flex-1 sm:flex-none px-6 py-4 text-slate-400 font-black text-[10px] uppercase tracking-widest hover:text-white transition-colors"
-                                  >
-                                    Limpar
-                                  </button>
-                                  <button 
-                                    onClick={() => {
-                                      let area = 0;
-                                      for (let i = 0; i < activePoints.length; i++) {
-                                        const p1 = activePoints[i];
-                                        const p2 = activePoints[(i + 1) % activePoints.length];
-                                        area += (p1.x * p2.y) - (p2.x * p1.y);
-                                      }
-                                      const realArea = parseFloat(Math.abs(area / 2 / Math.pow(calibrationRatio, 2)).toFixed(2));
-                                      
-                                      let perimeter = 0;
-                                      for (let i = 0; i < activePoints.length; i++) {
-                                        const p1 = activePoints[i];
-                                        const p2 = activePoints[(i + 1) % activePoints.length];
-                                        perimeter += Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
-                                      }
-                                      const realPerimeter = parseFloat((perimeter / calibrationRatio).toFixed(2));
-                                      const specs = calculateNBR(currentRoom.type || 'living', realArea, realPerimeter);
-                                      setCurrentRoom(prev => ({ ...prev, area: realArea, perimeter: realPerimeter, lights: specs.lights, tugs: specs.tugs }));
-                                      setIsAddingRoom(true);
-                                      setIsMeasuringArea(false);
-                                      setActivePoints([]);
-                                    }}
-                                    className="flex-1 sm:flex-none bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-500 transition-all flex items-center justify-center gap-3 shadow-xl shadow-blue-600/20"
-                                  >
-                                    <Plus size={16} /> Usar na Criação
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
                         )}
                       </div>
                     </div>
@@ -2371,21 +2445,7 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {!user ? (
-                    <div className="col-span-full bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem] p-20 flex flex-col items-center justify-center text-center">
-                      <div className="w-20 h-20 bg-blue-50 text-blue-200 rounded-full flex items-center justify-center mb-6">
-                        <LogIn size={40} />
-                      </div>
-                      <h4 className="text-xl font-bold text-slate-400">Login Necessário</h4>
-                      <p className="text-sm text-slate-400 mt-2 mb-8">Você precisa entrar com sua conta Google para gerenciar técnicos e sincronizar seus dados na nuvem.</p>
-                      <button 
-                        onClick={handleLogin}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-600/20 active:scale-95 flex items-center gap-2"
-                      >
-                        <LogIn size={18} /> Entrar com Google
-                      </button>
-                    </div>
-                  ) : technicians.length === 0 ? (
+                  {technicians.length === 0 ? (
                     <div className="col-span-full bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem] p-20 flex flex-col items-center justify-center text-center">
                       <div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center mb-6">
                         <User size={40} />

@@ -31,19 +31,16 @@ service cloud.firestore {
     
     function isValidProject(data) {
       return data.keys().hasAll(['id', 'name', 'userId', 'createdAt'])
-        && data.keys().hasOnly(['id', 'name', 'userId', 'rooms', 'customMaterials', 'selectedPoleModelId', 'calculateOnlyPole', 'floorPlanImage', 'calibrationRatio', 'technician', 'createdAt', 'updatedAt', 'serviceEntranceLength', 'serviceEntranceGauge'])
         && data.id is string
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
-        && data.userId == request.auth.uid
-        && data.createdAt is number;
+        && data.name is string
+        && data.userId == request.auth.uid;
     }
     
     function isValidTechnician(data) {
       return data.keys().hasAll(['id', 'userId', 'name'])
-        && data.keys().hasOnly(['id', 'userId', 'name', 'license', 'phone'])
         && data.id is string
         && data.userId == request.auth.uid
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 100;
+        && data.name is string;
     }
     
     function isValidCatalog(data) {
@@ -65,7 +62,7 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     match /projects/{projectId} {
-      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow get: if isSignedIn();
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidId(projectId) && isValidProject(incoming());
       allow update: if isSignedIn() && isValidProject(incoming()) 
@@ -76,7 +73,7 @@ service cloud.firestore {
     }
 
     match /technicians/{technicianId} {
-      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow get: if isSignedIn();
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidId(technicianId) && isValidTechnician(incoming());
       allow update: if isSignedIn() && isValidTechnician(incoming())
@@ -93,7 +90,7 @@ service cloud.firestore {
     }
 
     match /pole_models/{modelId} {
-      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow get: if isSignedIn();
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidId(modelId) && isValidPoleModel(incoming());
       allow update: if isSignedIn() && isValidPoleModel(incoming())
